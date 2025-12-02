@@ -1,3 +1,16 @@
 {
-	"name": "hcrg.runtime"
+    "name": "hcrg.runtime",
+    "rootNamespace": "",
+    "references": [
+        "Unity.ProBuilder"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
 }
