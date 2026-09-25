@@ -3,12 +3,12 @@ using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AI;
-using HRCG.Core;
-using HRCG.Generation;
-using HRCG.Geometry;
-using HRCG.Runtime;
+using CRG.Core;
+using CRG.Generation;
+using CRG.Geometry;
+using CRG.Runtime;
 
-namespace HRCG.Tests
+namespace CRG.Tests
 {
     public class ThickWallAndCeilingTests
     {
@@ -65,7 +65,7 @@ namespace HRCG.Tests
             for (int seed = 0; seed < 10; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new HRCGGenerator().Generate(parameters);
+                HexGrid grid = new CRGGenerator().Generate(parameters);
                 GameObject level = Track(LevelGeometryGenerator.FromParameters(grid, parameters).GenerateLevel());
 
                 List<Triangle> tops = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: true)).ToList();
@@ -80,13 +80,13 @@ namespace HRCG.Tests
             parameters.WallThickness = thickness;
             parameters.AddMeshCollider = true;
             GameObject level = Generate();
-            HRCGLevelData data = level.GetComponent<HRCGLevelData>();
+            CRGLevelData data = level.GetComponent<CRGLevelData>();
             Physics.SyncTransforms();
 
             float reach = thickness + 0.5f;
             Vector3 midHeight = Vector3.up * (parameters.DoorHeight / 2f);
 
-            foreach (HRCGLevelData.DoorData door in data.Doors)
+            foreach (CRGLevelData.DoorData door in data.Doors)
             {
                 Vector3 center = level.transform.TransformPoint(data.GetDoorCenterLocal(door)) + midHeight;
                 Vector3 forward = level.transform.TransformDirection(data.GetDoorForwardLocal(door));
@@ -110,7 +110,7 @@ namespace HRCG.Tests
             parameters.WallThickness = thickness;
             parameters.AddCeiling = true;
             GameObject level = Generate();
-            int cells = level.GetComponent<HRCGLevelData>().Rooms.Sum(room => room.Cells.Count);
+            int cells = level.GetComponent<CRGLevelData>().Rooms.Sum(room => room.Cells.Count);
 
             List<Triangle> ceiling = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).ToList();
             float expected = cells * HexArea(parameters.HexSize);
@@ -139,7 +139,7 @@ namespace HRCG.Tests
             GameObject level = Generate();
 
             Assert.That(GetTriangles(level).Any(t => IsHorizontalAt(t, parameters.WallHeight, up: false)), Is.False);
-            Assert.That(level.GetComponent<HRCGLevelData>().Rooms.Any(room => room.HasCeiling), Is.False);
+            Assert.That(level.GetComponent<CRGLevelData>().Rooms.Any(room => room.HasCeiling), Is.False);
         }
 
         [Test]
@@ -148,7 +148,7 @@ namespace HRCG.Tests
             parameters.AddCeiling = true;
             parameters.CeilingChance = 1f;
 
-            Assert.That(Generate().GetComponent<HRCGLevelData>().Rooms.All(room => room.HasCeiling), Is.True);
+            Assert.That(Generate().GetComponent<CRGLevelData>().Rooms.All(room => room.HasCeiling), Is.True);
         }
 
         [Test]
@@ -162,7 +162,7 @@ namespace HRCG.Tests
             {
                 parameters.RandomSeed = seed;
                 GameObject level = Generate();
-                List<HRCGLevelData.RoomData> rooms = level.GetComponent<HRCGLevelData>().Rooms.ToList();
+                List<CRGLevelData.RoomData> rooms = level.GetComponent<CRGLevelData>().Rooms.ToList();
 
                 int coveredCells = rooms.Where(room => room.HasCeiling).Sum(room => room.Cells.Count);
                 float expected = coveredCells * HexArea(parameters.HexSize);
@@ -185,11 +185,11 @@ namespace HRCG.Tests
                 parameters.RandomSeed = seed;
 
                 parameters.CeilingChance = 1f;
-                string layoutWithAllCeilings = LayoutFingerprint(new HRCGGenerator().Generate(parameters), includeCeilings: false);
+                string layoutWithAllCeilings = LayoutFingerprint(new CRGGenerator().Generate(parameters), includeCeilings: false);
 
                 parameters.CeilingChance = 0.4f;
-                HexGrid first = new HRCGGenerator().Generate(parameters);
-                HexGrid second = new HRCGGenerator().Generate(parameters);
+                HexGrid first = new CRGGenerator().Generate(parameters);
+                HexGrid second = new CRGGenerator().Generate(parameters);
 
                 Assert.That(LayoutFingerprint(first, includeCeilings: false), Is.EqualTo(layoutWithAllCeilings), $"seed {seed}: layout changed");
                 Assert.That(LayoutFingerprint(first, includeCeilings: true), Is.EqualTo(LayoutFingerprint(second, includeCeilings: true)), $"seed {seed}: ceilings differ");
@@ -223,7 +223,7 @@ namespace HRCG.Tests
             Assert.That(parameters.Validate(out _), Is.True);
         }
 
-#if HRCG_AI_NAVIGATION
+#if CRG_AI_NAVIGATION
         [Test]
         public void NavMesh_WithThickWallsAndCeiling_ConnectsRoomsButNotRoof()
         {
@@ -235,7 +235,7 @@ namespace HRCG.Tests
                 parameters.AddCeiling = true;
                 parameters.BakeNavMesh = true;
                 GameObject level = Generate();
-                HRCGLevelData data = level.GetComponent<HRCGLevelData>();
+                CRGLevelData data = level.GetComponent<CRGLevelData>();
                 Unity.AI.Navigation.NavMeshSurface surface = level.GetComponent<Unity.AI.Navigation.NavMeshSurface>();
 
                 Assert.That(NavMesh.SamplePosition(data.StartRoom.SpawnPoint.position, out NavMeshHit from, 2f, NavMesh.AllAreas), Is.True);

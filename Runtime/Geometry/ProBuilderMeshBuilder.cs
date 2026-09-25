@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.ProBuilder;
-using HRCG.Core;
+using CRG.Core;
 
-namespace HRCG.Geometry
+namespace CRG.Geometry
 {
     // Accumulates floor and wall faces and emits them as a single ProBuilderMesh,
     // with one submesh per distinct material.

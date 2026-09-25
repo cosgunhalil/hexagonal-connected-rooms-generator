@@ -3,12 +3,12 @@ using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AI;
-using HRCG.Core;
-using HRCG.Generation;
-using HRCG.Geometry;
-using HRCG.Runtime;
+using CRG.Core;
+using CRG.Generation;
+using CRG.Geometry;
+using CRG.Runtime;
 
-namespace HRCG.Tests
+namespace CRG.Tests
 {
     // Post-generation features: colliders, spawn points, door prefabs, room roles, layout control and NavMesh.
     public class LevelFeatureTests
@@ -54,9 +54,9 @@ namespace HRCG.Tests
         [Test]
         public void SpawnPoints_OnePerRoomInsideTheRoom()
         {
-            HRCGLevelData data = Generate().GetComponent<HRCGLevelData>();
+            CRGLevelData data = Generate().GetComponent<CRGLevelData>();
 
-            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            foreach (CRGLevelData.RoomData room in data.Rooms)
             {
                 Assert.That(room.SpawnPoint, Is.Not.Null, $"room {room.RoomID}");
                 Assert.That(data.GetSpawnPoint(room.RoomID), Is.EqualTo(room.SpawnPoint));
@@ -70,7 +70,7 @@ namespace HRCG.Tests
         public void SpawnPoints_NotCreatedWhenDisabled()
         {
             parameters.CreateSpawnPoints = false;
-            HRCGLevelData data = Generate().GetComponent<HRCGLevelData>();
+            CRGLevelData data = Generate().GetComponent<CRGLevelData>();
 
             Assert.That(data.Rooms.All(room => room.SpawnPoint == null), Is.True);
         }
@@ -80,13 +80,13 @@ namespace HRCG.Tests
         {
             GameObject template = Track(new GameObject("Door Template"));
             GameObject level = Generate(template);
-            HRCGLevelData data = level.GetComponent<HRCGLevelData>();
+            CRGLevelData data = level.GetComponent<CRGLevelData>();
 
             Transform doorsParent = level.transform.Find("Doors");
             Assert.That(doorsParent, Is.Not.Null);
             Assert.That(doorsParent.childCount, Is.EqualTo(data.Doors.Count));
 
-            foreach (HRCGLevelData.DoorData door in data.Doors)
+            foreach (CRGLevelData.DoorData door in data.Doors)
             {
                 Assert.That(door.DoorObject, Is.Not.Null);
                 Assert.That(Vector3.Distance(door.DoorObject.localPosition, data.GetDoorCenterLocal(door)), Is.LessThan(1e-3f));
@@ -100,19 +100,19 @@ namespace HRCG.Tests
             for (int seed = 0; seed < Seeds; seed++)
             {
                 parameters.RandomSeed = seed;
-                HRCGLevelData data = Generate().GetComponent<HRCGLevelData>();
+                CRGLevelData data = Generate().GetComponent<CRGLevelData>();
 
-                HRCGLevelData.RoomData start = data.StartRoom;
-                HRCGLevelData.RoomData end = data.EndRoom;
+                CRGLevelData.RoomData start = data.StartRoom;
+                CRGLevelData.RoomData end = data.EndRoom;
                 int maxDistance = data.Rooms.Max(room => room.DistanceFromStart);
 
                 Assert.That(start.RoomID, Is.EqualTo(data.Rooms.Min(room => room.RoomID)), $"seed {seed}");
                 Assert.That(start.DistanceFromStart, Is.Zero);
                 Assert.That(end, Is.Not.Null, $"seed {seed}");
                 Assert.That(end.DistanceFromStart, Is.EqualTo(maxDistance), $"seed {seed}");
-                Assert.That(data.Rooms.Count(room => room.Role == HRCGLevelData.RoomRole.End), Is.EqualTo(1));
+                Assert.That(data.Rooms.Count(room => room.Role == CRGLevelData.RoomRole.End), Is.EqualTo(1));
 
-                foreach (HRCGLevelData.RoomData room in data.Rooms)
+                foreach (CRGLevelData.RoomData room in data.Rooms)
                 {
                     Assert.That(room.DistanceFromStart, Is.GreaterThanOrEqualTo(0), $"seed {seed}: room {room.RoomID} unreachable");
                     foreach (int neighborID in room.ConnectedRoomIDs)
@@ -132,7 +132,7 @@ namespace HRCG.Tests
             for (int seed = 0; seed < Seeds; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new HRCGGenerator().Generate(parameters);
+                HexGrid grid = new CRGGenerator().Generate(parameters);
                 int connections = grid.GetAllRooms().Sum(room => room.GetConnectionCount()) / 2;
 
                 Assert.That(connections, Is.EqualTo(grid.RoomCount - 1), $"seed {seed}");
@@ -165,7 +165,7 @@ namespace HRCG.Tests
             Assert.That(sprawling, Is.GreaterThan(clustered));
         }
 
-#if HRCG_AI_NAVIGATION
+#if CRG_AI_NAVIGATION
         [Test]
         public void NavMesh_ConnectsStartRoomToEndRoom()
         {
@@ -176,7 +176,7 @@ namespace HRCG.Tests
             {
                 parameters.BakeNavMesh = true;
                 GameObject level = Generate();
-                HRCGLevelData data = level.GetComponent<HRCGLevelData>();
+                CRGLevelData data = level.GetComponent<CRGLevelData>();
                 Unity.AI.Navigation.NavMeshSurface surface = level.GetComponent<Unity.AI.Navigation.NavMeshSurface>();
 
                 Assert.That(surface, Is.Not.Null);
@@ -236,7 +236,7 @@ namespace HRCG.Tests
             for (int seed = 0; seed < Seeds; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new HRCGGenerator().Generate(parameters);
+                HexGrid grid = new CRGGenerator().Generate(parameters);
                 total += grid.GetAllRooms().Sum(room => room.GetConnectionCount()) / 2 - (grid.RoomCount - 1);
             }
             return (double)total / Seeds;
@@ -249,7 +249,7 @@ namespace HRCG.Tests
             for (int seed = 0; seed < Seeds; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new HRCGGenerator().Generate(parameters);
+                HexGrid grid = new CRGGenerator().Generate(parameters);
                 total += grid.GetAllRooms().SelectMany(room => room.Cells).Max(cell => cell.DistanceTo(parameters.StartPosition));
             }
             return (double)total / Seeds;

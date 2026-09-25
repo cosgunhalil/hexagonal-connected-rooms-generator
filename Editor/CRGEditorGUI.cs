@@ -2,12 +2,12 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
-using HRCG.Generation;
-using HRCG.Geometry;
+using CRG.Generation;
+using CRG.Geometry;
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
-    public static class HRCGEditorGUI
+    public static class CRGEditorGUI
     {
         // Dropdown of the agent types defined in Navigation settings; returns the selected agent type ID.
         public static int AgentTypePopup(GUIContent label, int agentTypeID)

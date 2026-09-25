@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace HRCG.Core
+namespace CRG.Core
 {
     public class Room
     {

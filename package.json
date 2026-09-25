@@ -1,7 +1,7 @@
 {
-  "name": "com.hrcg.hexagonal-rooms-generator",
-  "version": "0.1.0",
-  "displayName": "Hexagonal Connected Rooms Generator",
+  "name": "com.cosgunhalil.connected-rooms-generator",
+  "version": "0.2.0",
+  "displayName": "Connected Rooms Generator",
   "description": "A procedural generation tool for Unity that creates interconnected rooms on a hexagonal grid. Each room is a cluster of adjacent hexagons; the level is built as a single ProBuilder mesh with doors, optional colliders, NavMesh, spawn points and door prefabs.",
   "unity": "2021.3",
   "keywords": [

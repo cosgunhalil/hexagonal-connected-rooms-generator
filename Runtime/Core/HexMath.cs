@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace HRCG.Core
+namespace CRG.Core
 {
     // Pointy-top hexagons in the XZ plane. Vertex i sits at 30 + 60 * i degrees from +X.
     // Edge i runs from vertex (i + 5) % 6 to vertex i, so its outward normal points at

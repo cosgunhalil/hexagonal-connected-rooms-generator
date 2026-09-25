@@ -1,8 +1,8 @@
 using System;
-using HRCG.Core;
+using CRG.Core;
 using UnityEngine;
 
-namespace HRCG.Generation
+namespace CRG.Generation
 {
     public enum NavMeshGeometrySource
     {

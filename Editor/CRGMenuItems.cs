@@ -1,17 +1,17 @@
 using UnityEditor;
 using UnityEngine;
-using HRCG.Generation;
-using HRCG.Geometry;
+using CRG.Generation;
+using CRG.Geometry;
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
-    public static class HRCGMenuItems
+    public static class CRGMenuItems
     {
-        [MenuItem("GameObject/HRCG/Create Level Generator", false, 10)]
+        [MenuItem("GameObject/CRG/Create Level Generator", false, 10)]
         public static void CreateLevelGenerator(MenuCommand menuCommand)
         {
             GameObject go = new GameObject("Level Generator");
-            var component = go.AddComponent<HRCG.Runtime.HRCGRuntimeComponent>();
+            var component = go.AddComponent<CRG.Runtime.CRGRuntimeComponent>();
             component.parameters = GenerationParameters.CreateDefault();
 
             GameObjectUtility.SetParentAndAlign(go, menuCommand.context as GameObject);
@@ -19,7 +19,7 @@ namespace HRCG.Editor
             Selection.activeObject = go;
         }
 
-        [MenuItem("Assets/Create/HRCG/Generation Parameters")]
+        [MenuItem("Assets/Create/CRG/Generation Parameters")]
         public static void CreateGenerationParameters()
         {
             GenerationParametersAsset asset = ScriptableObject.CreateInstance<GenerationParametersAsset>();
@@ -44,7 +44,7 @@ namespace HRCG.Editor
             Selection.activeObject = asset;
         }
 
-        [MenuItem("HRCG/Generate Quick Level (Small)")]
+        [MenuItem("CRG/Generate Quick Level (Small)")]
         public static void GenerateQuickLevelSmall()
         {
             GenerationParameters parameters = new GenerationParameters
@@ -59,7 +59,7 @@ namespace HRCG.Editor
             GenerateQuickLevel(parameters);
         }
 
-        [MenuItem("HRCG/Generate Quick Level (Medium)")]
+        [MenuItem("CRG/Generate Quick Level (Medium)")]
         public static void GenerateQuickLevelMedium()
         {
             GenerationParameters parameters = new GenerationParameters
@@ -74,7 +74,7 @@ namespace HRCG.Editor
             GenerateQuickLevel(parameters);
         }
 
-        [MenuItem("HRCG/Generate Quick Level (Large)")]
+        [MenuItem("CRG/Generate Quick Level (Large)")]
         public static void GenerateQuickLevelLarge()
         {
             GenerationParameters parameters = new GenerationParameters
@@ -95,23 +95,23 @@ namespace HRCG.Editor
             if (level == null)
                 return;
 
-            Undo.RegisterCreatedObjectUndo(level, "Generate HRCG Level");
+            Undo.RegisterCreatedObjectUndo(level, "Generate CRG Level");
             Selection.activeGameObject = level;
             EditorGUIUtility.PingObject(level);
         }
 
-        [MenuItem("HRCG/Clear All Generated Levels")]
+        [MenuItem("CRG/Clear All Generated Levels")]
         public static void ClearAllGeneratedLevels()
         {
             int count = 0;
 
             // Levels owned by a generator component are its children; clear them but keep the generator.
 #if UNITY_2023_1_OR_NEWER
-            HRCG.Runtime.HRCGRuntimeComponent[] generators = Object.FindObjectsByType<HRCG.Runtime.HRCGRuntimeComponent>(FindObjectsSortMode.None);
+            CRG.Runtime.CRGRuntimeComponent[] generators = Object.FindObjectsByType<CRG.Runtime.CRGRuntimeComponent>(FindObjectsSortMode.None);
 #else
-            HRCG.Runtime.HRCGRuntimeComponent[] generators = Object.FindObjectsOfType<HRCG.Runtime.HRCGRuntimeComponent>();
+            CRG.Runtime.CRGRuntimeComponent[] generators = Object.FindObjectsOfType<CRG.Runtime.CRGRuntimeComponent>();
 #endif
-            foreach (HRCG.Runtime.HRCGRuntimeComponent generator in generators)
+            foreach (CRG.Runtime.CRGRuntimeComponent generator in generators)
             {
                 if (generator.generatedLevel != null)
                 {
@@ -133,10 +133,12 @@ namespace HRCG.Editor
             Debug.Log($"Cleared {count} generated level objects");
         }
 
-        [MenuItem("HRCG/Documentation/Open Design Document")]
+        [MenuItem("CRG/Documentation/Open Design Document")]
         public static void OpenDesignDocument()
         {
-            string[] guids = AssetDatabase.FindAssets("HRCG_Design_Document");
+            string[] guids = AssetDatabase.FindAssets("CRG_Design_Document");
+            if (guids.Length == 0)
+                guids = AssetDatabase.FindAssets("HRCG_Design_Document");
             if (guids.Length > 0)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guids[0]);
@@ -148,7 +150,7 @@ namespace HRCG.Editor
             }
         }
 
-        [MenuItem("HRCG/Documentation/GitHub Repository")]
+        [MenuItem("CRG/Documentation/GitHub Repository")]
         public static void OpenGitHub()
         {
             PackageManifest manifest = LoadPackageManifest();
@@ -161,11 +163,11 @@ namespace HRCG.Editor
             Application.OpenURL(manifest.author.url);
         }
 
-        [MenuItem("HRCG/About")]
+        [MenuItem("CRG/About")]
         public static void ShowAbout()
         {
             PackageManifest manifest = LoadPackageManifest();
-            string title = string.IsNullOrEmpty(manifest?.displayName) ? "Hexagonal Connected Rooms Generator" : manifest.displayName;
+            string title = string.IsNullOrEmpty(manifest?.displayName) ? "Connected Rooms Generator" : manifest.displayName;
             string version = string.IsNullOrEmpty(manifest?.version) ? "unknown" : manifest.version;
 
             EditorUtility.DisplayDialog(
@@ -197,11 +199,11 @@ namespace HRCG.Editor
         // as a UPM package or embedded under Assets.
         private static PackageManifest LoadPackageManifest()
         {
-            string[] guids = AssetDatabase.FindAssets($"{nameof(HRCGMenuItems)} t:MonoScript");
+            string[] guids = AssetDatabase.FindAssets($"{nameof(CRGMenuItems)} t:MonoScript");
             foreach (string guid in guids)
             {
                 string scriptPath = AssetDatabase.GUIDToAssetPath(guid);
-                if (System.IO.Path.GetFileNameWithoutExtension(scriptPath) != nameof(HRCGMenuItems))
+                if (System.IO.Path.GetFileNameWithoutExtension(scriptPath) != nameof(CRGMenuItems))
                     continue;
 
                 string packageRoot = System.IO.Path.GetDirectoryName(System.IO.Path.GetDirectoryName(scriptPath));
@@ -212,7 +214,7 @@ namespace HRCG.Editor
                 }
             }
 
-            Debug.LogWarning("HRCG package.json not found");
+            Debug.LogWarning("CRG package.json not found");
             return null;
         }
     }

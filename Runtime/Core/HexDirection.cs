@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace HRCG.Core
+namespace CRG.Core
 {
     public class HexDirection
     {

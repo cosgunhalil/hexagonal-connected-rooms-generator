@@ -1,8 +1,8 @@
 using UnityEngine;
 
-namespace HRCG.Generation
+namespace CRG.Generation
 {
-    [CreateAssetMenu(fileName = "GenerationParameters", menuName = "HRCG/Generation Parameters", order = 1)]
+    [CreateAssetMenu(fileName = "GenerationParameters", menuName = "CRG/Generation Parameters", order = 1)]
     public class GenerationParametersAsset : ScriptableObject
     {
         public GenerationParameters parameters;

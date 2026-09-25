@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using HRCG.Core;
+using CRG.Core;
 
-namespace HRCG.Runtime
+namespace CRG.Runtime
 {
     // Room and door layout of a generated level, stored on the level GameObject so it survives
     // scene saves. Positions are in the level's local space (the mesh is built around its origin).
-    public class HRCGLevelData : MonoBehaviour
+    public class CRGLevelData : MonoBehaviour
     {
         public enum RoomRole
         {

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using HRCG.Core;
+using CRG.Core;
 using UnityEngine;
 
-namespace HRCG.Generation
+namespace CRG.Generation
 {
     // Flags room edges and places doors. Each connected pair of rooms gets exactly one door,
     // on a randomly chosen edge they share.

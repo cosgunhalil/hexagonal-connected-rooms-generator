@@ -1,17 +1,17 @@
 using UnityEngine;
 using UnityEngine.AI;
-using HRCG.Generation;
-#if HRCG_AI_NAVIGATION
+using CRG.Generation;
+#if CRG_AI_NAVIGATION
 using Unity.AI.Navigation;
 #endif
 
-namespace HRCG.Geometry
+namespace CRG.Geometry
 {
     // NavMesh baking for generated levels. Needs the AI Navigation package (com.unity.ai.navigation);
     // without it, baking is skipped with a warning and the rest of the tool keeps working.
     public static class LevelNavMeshBaker
     {
-#if HRCG_AI_NAVIGATION
+#if CRG_AI_NAVIGATION
         public static bool IsAvailable => true;
 
         // Raised after a successful bake. The editor uses it to save Edit Mode bakes as assets.
@@ -25,7 +25,7 @@ namespace HRCG.Geometry
 
         public static bool Bake(GameObject level, int agentTypeID, NavMeshGeometrySource geometry)
         {
-#if HRCG_AI_NAVIGATION
+#if CRG_AI_NAVIGATION
             NavMeshSurface surface = level.GetComponent<NavMeshSurface>();
             if (surface == null)
                 surface = level.AddComponent<NavMeshSurface>();

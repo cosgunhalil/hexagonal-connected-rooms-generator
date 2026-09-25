@@ -1,8 +1,8 @@
 using UnityEditor;
 using UnityEngine;
-using HRCG.Generation;
+using CRG.Generation;
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
     [CustomEditor(typeof(GenerationParametersAsset))]
     public class GenerationParametersInspector : UnityEditor.Editor
@@ -31,7 +31,7 @@ namespace HRCG.Editor
 
                 if (property.name == nameof(GenerationParameters.NavMeshAgentTypeID))
                 {
-                    property.intValue = HRCGEditorGUI.AgentTypePopup(new GUIContent(property.displayName, property.tooltip), property.intValue);
+                    property.intValue = CRGEditorGUI.AgentTypePopup(new GUIContent(property.displayName, property.tooltip), property.intValue);
                     continue;
                 }
 
@@ -60,7 +60,7 @@ namespace HRCG.Editor
                 EditorGUILayout.HelpBox($"Invalid: {errorMessage}", MessageType.Error);
             }
 
-            HRCGEditorGUI.NavMeshWarnings(asset.parameters);
+            CRGEditorGUI.NavMeshWarnings(asset.parameters);
         }
     }
 }

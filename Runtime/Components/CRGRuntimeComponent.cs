@@ -1,10 +1,10 @@
 using UnityEngine;
-using HRCG.Generation;
-using HRCG.Geometry;
+using CRG.Generation;
+using CRG.Geometry;
 
-namespace HRCG.Runtime
+namespace CRG.Runtime
 {
-    public class HRCGRuntimeComponent : MonoBehaviour
+    public class CRGRuntimeComponent : MonoBehaviour
     {
         [Header("Generation Settings")]
         public GenerationParameters parameters;
@@ -85,7 +85,7 @@ namespace HRCG.Runtime
 
         private void GenerateByRoom()
         {
-            HRCGGenerator generator = new HRCGGenerator();
+            CRGGenerator generator = new CRGGenerator();
             var grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geoGen = LevelGeometryGenerator.FromParameters(grid, parameters);

@@ -1,12 +1,12 @@
 using UnityEditor;
 using UnityEngine;
-using HRCG.Core;
-using HRCG.Generation;
-using HRCG.Geometry;
+using CRG.Core;
+using CRG.Generation;
+using CRG.Geometry;
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
-    public class HRCGEditorWindow : EditorWindow
+    public class CRGEditorWindow : EditorWindow
     {
         private GenerationParameters parameters;
         private Material floorMaterial;
@@ -19,11 +19,11 @@ namespace HRCG.Editor
         private bool showAdvancedSettings = false;
         private bool autoGenerate = false;
 
-        [MenuItem("HRCG/Level Generator", false, 0)]
-        [MenuItem("Window/HRCG/Level Generator")]
+        [MenuItem("CRG/Level Generator", false, 0)]
+        [MenuItem("Window/CRG/Level Generator")]
         public static void ShowWindow()
         {
-            HRCGEditorWindow window = GetWindow<HRCGEditorWindow>("HRCG Level Generator");
+            CRGEditorWindow window = GetWindow<CRGEditorWindow>("CRG Level Generator");
             window.minSize = new Vector2(400, 600);
         }
 
@@ -82,7 +82,7 @@ namespace HRCG.Editor
                 alignment = TextAnchor.MiddleCenter
             };
 
-            EditorGUILayout.LabelField("Hexagonal Connected Rooms Generator", headerStyle);
+            EditorGUILayout.LabelField("Connected Rooms Generator", headerStyle);
             EditorGUILayout.LabelField("Procedural Level Generation", EditorStyles.centeredGreyMiniLabel);
         }
 
@@ -199,7 +199,7 @@ namespace HRCG.Editor
             {
                 EditorGUI.indentLevel++;
 
-                parameters.NavMeshAgentTypeID = HRCGEditorGUI.AgentTypePopup(
+                parameters.NavMeshAgentTypeID = CRGEditorGUI.AgentTypePopup(
                     new GUIContent("Agent Type", "Agent type from Navigation settings"),
                     parameters.NavMeshAgentTypeID);
 
@@ -215,7 +215,7 @@ namespace HRCG.Editor
                 EditorGUILayout.HelpBox("Baking from colliders requires Add Mesh Collider.", MessageType.Error);
             }
 
-            HRCGEditorGUI.NavMeshWarnings(parameters);
+            CRGEditorGUI.NavMeshWarnings(parameters);
         }
 
         private void DrawDoorsAndSpawnsSettings()
@@ -399,7 +399,7 @@ namespace HRCG.Editor
 
             float startTime = Time.realtimeSinceStartup;
 
-            HRCGGenerator generator = new HRCGGenerator();
+            CRGGenerator generator = new CRGGenerator();
             HexGrid grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geometryGenerator = LevelGeometryGenerator.FromParameters(grid, parameters);
@@ -413,7 +413,7 @@ namespace HRCG.Editor
 
             if (lastGeneratedLevel != null)
             {
-                Undo.RegisterCreatedObjectUndo(lastGeneratedLevel, "Generate HRCG Level");
+                Undo.RegisterCreatedObjectUndo(lastGeneratedLevel, "Generate CRG Level");
                 Selection.activeGameObject = lastGeneratedLevel;
                 EditorGUIUtility.PingObject(lastGeneratedLevel);
             }

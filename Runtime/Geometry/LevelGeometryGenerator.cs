@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
-using HRCG.Core;
-using HRCG.Generation;
-using HRCG.Runtime;
+using CRG.Core;
+using CRG.Generation;
+using CRG.Runtime;
 
-namespace HRCG.Geometry
+namespace CRG.Geometry
 {
     public class LevelGeometryGenerator
     {
@@ -102,7 +102,7 @@ namespace HRCG.Geometry
         public static GameObject GenerateComplete(GenerationParameters parameters, Material floorMaterial = null, Material wallMaterial = null,
             GameObject doorPrefab = null, Material ceilingMaterial = null)
         {
-            HRCGGenerator generator = new HRCGGenerator();
+            CRGGenerator generator = new CRGGenerator();
             HexGrid grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geometryGenerator = FromParameters(grid, parameters);
@@ -118,7 +118,7 @@ namespace HRCG.Geometry
             if (level == null)
                 return null;
 
-            HRCGLevelData data = level.AddComponent<HRCGLevelData>();
+            CRGLevelData data = level.AddComponent<CRGLevelData>();
             data.Initialize(grid, wallHeight, doorHeight, doorWidthRatio, addCeiling);
 
             if (options != null)
@@ -156,11 +156,11 @@ namespace HRCG.Geometry
             }
         }
 
-        private static void CreateSpawnPoints(GameObject level, HRCGLevelData data)
+        private static void CreateSpawnPoints(GameObject level, CRGLevelData data)
         {
             Transform parent = CreateChild(level.transform, "Spawn Points");
 
-            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            foreach (CRGLevelData.RoomData room in data.Rooms)
             {
                 Transform spawnPoint = CreateChild(parent, $"Spawn_Room_{room.RoomID}");
                 spawnPoint.localPosition = data.GetRoomAnchorLocalPosition(room);
@@ -168,11 +168,11 @@ namespace HRCG.Geometry
             }
         }
 
-        private void PlaceDoors(GameObject level, HRCGLevelData data)
+        private void PlaceDoors(GameObject level, CRGLevelData data)
         {
             Transform parent = CreateChild(level.transform, "Doors");
 
-            foreach (HRCGLevelData.DoorData door in data.Doors)
+            foreach (CRGLevelData.DoorData door in data.Doors)
             {
                 GameObject instance = InstantiateDoor(parent);
                 instance.name = $"Door_{door.RoomA}_{door.RoomB}";

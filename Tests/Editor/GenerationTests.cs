@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using NUnit.Framework;
-using HRCG.Core;
-using HRCG.Generation;
+using CRG.Core;
+using CRG.Generation;
 
-namespace HRCG.Tests
+namespace CRG.Tests
 {
     public class GenerationTests
     {
@@ -51,7 +51,7 @@ namespace HRCG.Tests
             for (int seed = 0; seed < SeedsPerCase; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new HRCGGenerator().Generate(parameters);
+                HexGrid grid = new CRGGenerator().Generate(parameters);
                 AssertLevelIsValid(grid, parameters, $"seed {seed}");
             }
         }
@@ -64,7 +64,7 @@ namespace HRCG.Tests
             for (int seed = 0; seed < SeedsPerCase; seed++)
             {
                 parameters.RandomSeed = seed;
-                Assert.That(new HRCGGenerator().Generate(parameters).RoomCount, Is.EqualTo(parameters.TargetRoomCount), $"seed {seed}");
+                Assert.That(new CRGGenerator().Generate(parameters).RoomCount, Is.EqualTo(parameters.TargetRoomCount), $"seed {seed}");
             }
         }
 
@@ -77,8 +77,8 @@ namespace HRCG.Tests
             for (int seed = 0; seed < 10; seed++)
             {
                 parameters.RandomSeed = seed;
-                Assert.That(Fingerprint(new HRCGGenerator().Generate(parameters)),
-                    Is.EqualTo(Fingerprint(new HRCGGenerator().Generate(parameters))), $"seed {seed}");
+                Assert.That(Fingerprint(new CRGGenerator().Generate(parameters)),
+                    Is.EqualTo(Fingerprint(new CRGGenerator().Generate(parameters))), $"seed {seed}");
             }
         }
 
@@ -227,7 +227,7 @@ namespace HRCG.Tests
             for (int seed = 0; seed < SeedsPerCase; seed++)
             {
                 parameters.RandomSeed = seed;
-                total += new HRCGGenerator().Generate(parameters).RoomCount;
+                total += new CRGGenerator().Generate(parameters).RoomCount;
             }
             return (double)total / SeedsPerCase;
         }

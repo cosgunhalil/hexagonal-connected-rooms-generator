@@ -1,10 +1,10 @@
 {
-    "name": "HRCG.Editor",
-    "rootNamespace": "HRCG.Editor",
+    "name": "CRG.Editor",
+    "rootNamespace": "CRG.Editor",
     "references": [
         "Unity.ProBuilder",
         "Unity.ProBuilder.Editor",
-        "hcrg.runtime",
+        "CRG.Runtime",
         "Unity.AI.Navigation"
     ],
     "includePlatforms": [
@@ -20,7 +20,7 @@
         {
             "name": "com.unity.ai.navigation",
             "expression": "1.1.0",
-            "define": "HRCG_AI_NAVIGATION"
+            "define": "CRG_AI_NAVIGATION"
         }
     ],
     "noEngineReferences": false

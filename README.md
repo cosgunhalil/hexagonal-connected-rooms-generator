@@ -1,6 +1,6 @@
-# Hexagonal Connected Rooms Generator (HRCG)
+# Connected Rooms Generator (CRG)
 
-Procedural level generation for Unity. HRCG grows a set of connected rooms on a hexagonal grid, where every room is a cluster of adjacent hexagons, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
+Procedural level generation for Unity. CRG grows a set of connected rooms on a hexagonal grid, where every room is a cluster of adjacent hexagons, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
 
 On top of the geometry it can add colliders, bake a NavMesh, place a door prefab in every doorway, create a spawn point in each room and mark start/end rooms, so a generated level is ready to play.
 
@@ -12,7 +12,7 @@ On top of the geometry it can add colliders, bake a NavMesh, place a door prefab
 - **Layout control**: bias between compact and sprawling levels, and control how many loops the room graph has.
 - **Gameplay-ready extras**: MeshColliders, NavMesh baking (optional package), door prefabs, per-room spawn points, start/end room roles and distance from the start.
 - **Scene-view overlays**: room outlines and labels, door markers, the connection graph and start/end rooms.
-- **Undo support** for levels generated from the Level Generator window and the HRCG menus.
+- **Undo support** for levels generated from the Level Generator window and the CRG menus.
 
 ## Requirements
 
@@ -32,10 +32,10 @@ Alternatively, clone or copy the repository into your project's `Assets` or `Pac
 
 ## Quick start
 
-- **HRCG → Generate Quick Level (Small / Medium / Large)** generates a level with preset settings and a random seed.
-- **HRCG → Level Generator** (also under **Window → HRCG**) opens the full generator window: set parameters, materials and an optional door prefab, then click **Generate Level**.
-- **GameObject → HRCG → Create Level Generator** adds an `HRCGRuntimeComponent` to the scene. It can generate from its Inspector, or automatically on Start at runtime.
-- **Assets → Create → HRCG → Generation Parameters** creates a reusable parameters asset.
+- **CRG → Generate Quick Level (Small / Medium / Large)** generates a level with preset settings and a random seed.
+- **CRG → Level Generator** (also under **Window → CRG**) opens the full generator window: set parameters, materials and an optional door prefab, then click **Generate Level**.
+- **GameObject → CRG → Create Level Generator** adds an `CRGRuntimeComponent` to the scene. It can generate from its Inspector, or automatically on Start at runtime.
+- **Assets → Create → CRG → Generation Parameters** creates a reusable parameters asset.
 
 The generator window also offers **Generate (Separate Rooms)** (one mesh per room), **Floor Only** and **Walls Only**.
 
@@ -86,20 +86,20 @@ Hexagons are pointy-top in the XZ plane, and +Z is north.
 
 With **Bake NavMesh** enabled (and AI Navigation installed), a `NavMeshSurface` is added to the level and baked right after generation.
 
-- **Editor bakes** are saved as `HRCG-NavMesh-*.asset` in a folder named after the scene, next to the scene file (or in `Assets/HRCG NavMesh` for unsaved scenes), so they survive scene reloads.
-- **Runtime bakes** (for example `HRCGRuntimeComponent` generating on Start) stay in memory.
+- **Editor bakes** are saved as `CRG-NavMesh-*.asset` in a folder named after the scene, next to the scene file (or in `Assets/CRG NavMesh` for unsaved scenes), so they survive scene reloads.
+- **Runtime bakes** (for example `CRGRuntimeComponent` generating on Start) stay in memory.
 - The generator warns when doors are narrower than the agent's diameter or lower than its height, because agents could not pass between rooms.
-- Regenerating leaves old bakes behind. **HRCG → Delete Unused NavMesh Assets** deletes HRCG NavMesh assets that no open scene uses, after confirmation. Bakes used only by scenes that aren't open are deleted too.
+- Regenerating leaves old bakes behind. **CRG → Delete Unused NavMesh Assets** deletes CRG NavMesh assets that no open scene uses, after confirmation. Bakes used only by scenes that aren't open are deleted too.
 
 ## Runtime API
 
 Generate a complete level from code:
 
 ```csharp
-using HRCG.Core;
-using HRCG.Generation;
-using HRCG.Geometry;
-using HRCG.Runtime;
+using CRG.Core;
+using CRG.Generation;
+using CRG.Geometry;
+using CRG.Runtime;
 using UnityEngine;
 
 public class LevelBootstrap : MonoBehaviour
@@ -118,7 +118,7 @@ public class LevelBootstrap : MonoBehaviour
 
         GameObject level = LevelGeometryGenerator.GenerateComplete(parameters, floorMaterial, wallMaterial, doorPrefab);
 
-        HRCGLevelData data = level.GetComponent<HRCGLevelData>();
+        CRGLevelData data = level.GetComponent<CRGLevelData>();
         player.position = data.StartRoom.SpawnPoint.position;
         Debug.Log($"Exit is in room {data.EndRoom.RoomID}, {data.EndRoom.DistanceFromStart} doors away");
     }
@@ -128,14 +128,14 @@ public class LevelBootstrap : MonoBehaviour
 For more control, run the steps separately:
 
 ```csharp
-HexGrid grid = new HRCGGenerator().Generate(parameters);          // logical layout only
+HexGrid grid = new CRGGenerator().Generate(parameters);          // logical layout only
 LevelGeometryGenerator geometry = LevelGeometryGenerator.FromParameters(grid, parameters);
 geometry.SetMaterials(floorMaterial, wallMaterial);
 geometry.SetDoorPrefab(doorPrefab);
 GameObject level = geometry.GenerateLevel();                      // or GenerateLevelSeparateByRoom()
 ```
 
-Every generated level has an `HRCGLevelData` component with the layout, stored with the scene:
+Every generated level has an `CRGLevelData` component with the layout, stored with the scene:
 
 | Member | Description |
 |---|---|
@@ -147,7 +147,7 @@ Every generated level has an `HRCGLevelData` component with the layout, stored w
 
 ## Scene-view overlays
 
-Every generated level draws room outlines in per-room colors, room labels (size, door count, distance from start), door markers, the connection graph routed through each door, and green/red rings on the start and end rooms. Toggle each overlay in the `HRCGLevelData` Inspector, which also shows a level summary and a **Frame Level In Scene View** button. Overlays need **Gizmos** enabled in the Scene view.
+Every generated level draws room outlines in per-room colors, room labels (size, door count, distance from start), door markers, the connection graph routed through each door, and green/red rings on the start and end rooms. Toggle each overlay in the `CRGLevelData` Inspector, which also shows a level summary and a **Frame Level In Scene View** button. Overlays need **Gizmos** enabled in the Scene view.
 
 ## Tests
 
@@ -158,6 +158,17 @@ Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → T
 - With thick walls, outer corners where a room wraps around its neighbor are chamfered rather than rounded.
 - Min Connections Per Room is best effort for rooms at the edge of the level.
 - The level is built around the origin; move the generated GameObject to place it elsewhere.
+
+## Migrating from 0.1.x (Hexagonal Connected Rooms Generator / HRCG)
+
+Version 0.2.0 renamed the package:
+
+- **Package ID** `com.hrcg.hexagonal-rooms-generator` became `com.cosgunhalil.connected-rooms-generator`. If you installed through the Package Manager, remove the old package and add it again from the same git URL.
+- **Namespaces** `HRCG.*` became `CRG.*`, and the classes `HRCGGenerator`, `HRCGLevelData` and `HRCGRuntimeComponent` became `CRGGenerator`, `CRGLevelData` and `CRGRuntimeComponent`. Update `using` directives and type names in your code.
+- **Assemblies** `hcrg.runtime` / `HRCG.Editor` became `CRG.Runtime` / `CRG.Editor`. Update references in your own assembly definitions.
+- **Menus** moved from **HRCG** to **CRG**.
+- **The `HRCG_AI_NAVIGATION` define** became `CRG_AI_NAVIGATION`.
+- **Existing scenes and assets keep working.** Components and parameter assets are referenced by their unchanged script IDs. NavMesh bakes saved as `HRCG-NavMesh-*.asset` are still found by **CRG → Delete Unused NavMesh Assets**, while new bakes are named `CRG-NavMesh-*.asset`.
 
 ## License
 

@@ -1,11 +1,11 @@
 using UnityEditor;
 using UnityEngine;
-using HRCG.Runtime;
+using CRG.Runtime;
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
-    [CustomEditor(typeof(HRCGLevelData))]
-    public class HRCGLevelDataInspector : UnityEditor.Editor
+    [CustomEditor(typeof(CRGLevelData))]
+    public class CRGLevelDataInspector : UnityEditor.Editor
     {
         public override void OnInspectorGUI()
         {
@@ -16,7 +16,7 @@ namespace HRCG.Editor
                 SceneView.RepaintAll();
             }
 
-            HRCGLevelData data = (HRCGLevelData)target;
+            CRGLevelData data = (CRGLevelData)target;
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Level Summary", EditorStyles.boldLabel);
@@ -24,8 +24,8 @@ namespace HRCG.Editor
             EditorGUILayout.LabelField("Doors", data.Doors.Count.ToString());
             EditorGUILayout.LabelField("Hex Size", data.HexSize.ToString("F2"));
 
-            HRCGLevelData.RoomData startRoom = data.StartRoom;
-            HRCGLevelData.RoomData endRoom = data.EndRoom;
+            CRGLevelData.RoomData startRoom = data.StartRoom;
+            CRGLevelData.RoomData endRoom = data.EndRoom;
             EditorGUILayout.LabelField("Start Room", startRoom != null ? $"Room {startRoom.RoomID}" : "-");
             EditorGUILayout.LabelField("End Room", endRoom != null ? $"Room {endRoom.RoomID} ({endRoom.DistanceFromStart} doors from start)" : "-");
 

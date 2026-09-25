@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HRCG.Core
+namespace CRG.Core
 {
     [Serializable]
     public struct AxialCoord : IEquatable<AxialCoord>

@@ -1,11 +1,11 @@
 {
-    "name": "HRCG.Tests.Editor",
-    "rootNamespace": "HRCG.Tests",
+    "name": "CRG.Tests.Editor",
+    "rootNamespace": "CRG.Tests",
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Unity.ProBuilder",
-        "hcrg.runtime",
+        "CRG.Runtime",
         "Unity.AI.Navigation"
     ],
     "includePlatforms": [
@@ -25,7 +25,7 @@
         {
             "name": "com.unity.ai.navigation",
             "expression": "1.1.0",
-            "define": "HRCG_AI_NAVIGATION"
+            "define": "CRG_AI_NAVIGATION"
         }
     ],
     "noEngineReferences": false

@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using HRCG.Core;
+using CRG.Core;
 using UnityEngine;
 
-namespace HRCG.Generation
+namespace CRG.Generation
 {
     public class RoomShapeGenerator
     {

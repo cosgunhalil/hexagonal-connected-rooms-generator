@@ -1,14 +1,14 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
-using HRCG.Core;
-using HRCG.Runtime;
+using CRG.Core;
+using CRG.Runtime;
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
     // Scene-view overlays for generated levels: room outlines and labels, door markers,
     // and the room connection graph routed through each door.
-    public static class HRCGLevelDataGizmos
+    public static class CRGLevelDataGizmos
     {
         private const float OutlineLift = 0.05f;
         private const float OutlineWidth = 3f;
@@ -22,7 +22,7 @@ namespace HRCG.Editor
         private static GUIStyle labelStyle;
 
         [DrawGizmo(GizmoType.Selected | GizmoType.NonSelected)]
-        private static void DrawLevelOverlays(HRCGLevelData data, GizmoType gizmoType)
+        private static void DrawLevelOverlays(CRGLevelData data, GizmoType gizmoType)
         {
             if (data.Rooms.Count == 0)
                 return;
@@ -55,13 +55,13 @@ namespace HRCG.Editor
             return Color.HSVToRGB((roomID * GoldenRatioConjugate) % 1f, 0.65f, 1f);
         }
 
-        private static void DrawRoomOutlines(HRCGLevelData data)
+        private static void DrawRoomOutlines(CRGLevelData data)
         {
             Vector3[] corners = HexMath.GetHexVertices(data.HexSize * 0.92f);
             Vector3[] outline = new Vector3[7];
             Vector3 lift = Vector3.up * OutlineLift;
 
-            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            foreach (CRGLevelData.RoomData room in data.Rooms)
             {
                 Handles.color = GetRoomColor(room.RoomID);
 
@@ -77,12 +77,12 @@ namespace HRCG.Editor
             }
         }
 
-        private static void DrawDoors(HRCGLevelData data)
+        private static void DrawDoors(CRGLevelData data)
         {
             Handles.color = DoorColor;
             Vector3 markerHeight = Vector3.up * (data.DoorHeight * 0.5f);
 
-            foreach (HRCGLevelData.DoorData door in data.Doors)
+            foreach (CRGLevelData.DoorData door in data.Doors)
             {
                 (Vector3 start, Vector3 end) = data.GetDoorOpeningLocal(door);
                 Handles.DrawAAPolyLine(DoorMarkerWidth, start + markerHeight, end + markerHeight);
@@ -91,12 +91,12 @@ namespace HRCG.Editor
             }
         }
 
-        private static void DrawConnections(HRCGLevelData data)
+        private static void DrawConnections(CRGLevelData data)
         {
             Dictionary<int, Vector3> anchors = GetLabelAnchors(data);
             Vector3 lift = Vector3.up * (data.WallHeight * 0.5f);
 
-            foreach (HRCGLevelData.DoorData door in data.Doors)
+            foreach (CRGLevelData.DoorData door in data.Doors)
             {
                 (Vector3 start, Vector3 end) = data.GetDoorOpeningLocal(door);
                 Vector3 doorPoint = (start + end) * 0.5f + lift;
@@ -109,7 +109,7 @@ namespace HRCG.Editor
             }
         }
 
-        private static void DrawRoomLabels(HRCGLevelData data)
+        private static void DrawRoomLabels(CRGLevelData data)
         {
             if (labelStyle == null)
             {
@@ -124,7 +124,7 @@ namespace HRCG.Editor
 
             Dictionary<int, Vector3> anchors = GetLabelAnchors(data);
 
-            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            foreach (CRGLevelData.RoomData room in data.Rooms)
             {
                 string color = ColorUtility.ToHtmlStringRGB(GetRoomColor(room.RoomID));
                 string doorsLabel = room.ConnectedRoomIDs.Count == 1 ? "door" : "doors";
@@ -141,42 +141,42 @@ namespace HRCG.Editor
         }
 
         // Rings around the start (green) and end (red) rooms' anchor cells.
-        private static void DrawRoomRoles(HRCGLevelData data)
+        private static void DrawRoomRoles(CRGLevelData data)
         {
             float radius = HexMath.GetInnerRadius(data.HexSize) * 0.6f;
             Vector3 lift = Vector3.up * OutlineLift;
 
-            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            foreach (CRGLevelData.RoomData room in data.Rooms)
             {
-                if (room.Role == HRCGLevelData.RoomRole.Normal)
+                if (room.Role == CRGLevelData.RoomRole.Normal)
                     continue;
 
-                Handles.color = room.Role == HRCGLevelData.RoomRole.Start ? StartColor : EndColor;
+                Handles.color = room.Role == CRGLevelData.RoomRole.Start ? StartColor : EndColor;
                 Vector3 center = data.GetRoomAnchorLocalPosition(room) + lift;
                 Handles.DrawWireDisc(center, Vector3.up, radius, DoorMarkerWidth);
                 Handles.DrawWireDisc(center, Vector3.up, radius * 0.8f, OutlineWidth);
             }
         }
 
-        private static string GetRoleLine(HRCGLevelData.RoomData room)
+        private static string GetRoleLine(CRGLevelData.RoomData room)
         {
             switch (room.Role)
             {
-                case HRCGLevelData.RoomRole.Start:
+                case CRGLevelData.RoomRole.Start:
                     return $"\n<color=#{ColorUtility.ToHtmlStringRGB(StartColor)}>START</color>";
-                case HRCGLevelData.RoomRole.End:
+                case CRGLevelData.RoomRole.End:
                     return $"\n<color=#{ColorUtility.ToHtmlStringRGB(EndColor)}>END</color> · {room.DistanceFromStart} doors from start";
                 default:
                     return $"\n{room.DistanceFromStart} doors from start{(room.IsDeadEnd ? " · dead end" : "")}";
             }
         }
 
-        private static Dictionary<int, Vector3> GetLabelAnchors(HRCGLevelData data)
+        private static Dictionary<int, Vector3> GetLabelAnchors(CRGLevelData data)
         {
             Dictionary<int, Vector3> anchors = new Dictionary<int, Vector3>();
             Vector3 lift = Vector3.up * (data.WallHeight * 0.5f);
 
-            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            foreach (CRGLevelData.RoomData room in data.Rooms)
                 anchors[room.RoomID] = data.GetRoomAnchorLocalPosition(room) + lift;
 
             return anchors;

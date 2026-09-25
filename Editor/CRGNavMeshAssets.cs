@@ -4,21 +4,23 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
-#if HRCG_AI_NAVIGATION
+#if CRG_AI_NAVIGATION
 using Unity.AI.Navigation;
-using HRCG.Geometry;
+using CRG.Geometry;
 #endif
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
     // Edit Mode NavMesh bakes only live in memory; this saves them as assets next to the scene
-    // (<SceneFolder>/<SceneName>/HRCG-NavMesh-*.asset) so they survive scene reloads.
-    public static class HRCGNavMeshAssets
+    // (<SceneFolder>/<SceneName>/CRG-NavMesh-*.asset) so they survive scene reloads.
+    public static class CRGNavMeshAssets
     {
-        private const string AssetPrefix = "HRCG-NavMesh-";
-        private const string UnsavedSceneFolder = "Assets/HRCG NavMesh";
+        private const string AssetPrefix = "CRG-NavMesh-";
+        // Bakes saved before the package was renamed; still cleaned up by DeleteUnusedNavMeshAssets.
+        private const string LegacyAssetPrefix = "HRCG-NavMesh-";
+        private const string UnsavedSceneFolder = "Assets/CRG NavMesh";
 
-#if HRCG_AI_NAVIGATION
+#if CRG_AI_NAVIGATION
         [InitializeOnLoadMethod]
         private static void Register()
         {
@@ -38,16 +40,17 @@ namespace HRCG.Editor
         }
 #endif
 
-        [MenuItem("HRCG/Delete Unused NavMesh Assets")]
+        [MenuItem("CRG/Delete Unused NavMesh Assets")]
         public static void DeleteUnusedNavMeshAssets()
         {
             HashSet<NavMeshData> used = CollectUsedNavMeshData();
             List<string> unused = new List<string>();
 
-            foreach (string guid in AssetDatabase.FindAssets($"{AssetPrefix} t:NavMeshData"))
+            foreach (string guid in AssetDatabase.FindAssets("t:NavMeshData"))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
-                if (!Path.GetFileName(path).StartsWith(AssetPrefix))
+                string fileName = Path.GetFileName(path);
+                if (!fileName.StartsWith(AssetPrefix) && !fileName.StartsWith(LegacyAssetPrefix))
                     continue;
 
                 NavMeshData data = AssetDatabase.LoadAssetAtPath<NavMeshData>(path);
@@ -57,7 +60,7 @@ namespace HRCG.Editor
 
             if (unused.Count == 0)
             {
-                EditorUtility.DisplayDialog("Delete Unused NavMesh Assets", "No unused HRCG NavMesh assets found.", "OK");
+                EditorUtility.DisplayDialog("Delete Unused NavMesh Assets", "No unused CRG NavMesh assets found.", "OK");
                 return;
             }
 
@@ -67,7 +70,7 @@ namespace HRCG.Editor
 
             bool confirmed = EditorUtility.DisplayDialog(
                 "Delete Unused NavMesh Assets",
-                $"Delete {unused.Count} HRCG NavMesh asset(s) not used by any open scene? This cannot be undone.\n\n" +
+                $"Delete {unused.Count} CRG NavMesh asset(s) not used by any open scene? This cannot be undone.\n\n" +
                 "Assets used only by scenes that are not open will also be deleted.\n\n" + list,
                 "Delete", "Cancel");
 
@@ -77,13 +80,13 @@ namespace HRCG.Editor
             foreach (string path in unused)
                 AssetDatabase.DeleteAsset(path);
 
-            Debug.Log($"Deleted {unused.Count} unused HRCG NavMesh asset(s)");
+            Debug.Log($"Deleted {unused.Count} unused CRG NavMesh asset(s)");
         }
 
         private static HashSet<NavMeshData> CollectUsedNavMeshData()
         {
             HashSet<NavMeshData> used = new HashSet<NavMeshData>();
-#if HRCG_AI_NAVIGATION
+#if CRG_AI_NAVIGATION
             for (int i = 0; i < SceneManager.sceneCount; i++)
             {
                 Scene scene = SceneManager.GetSceneAt(i);

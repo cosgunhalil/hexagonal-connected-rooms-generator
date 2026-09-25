@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using HRCG.Core;
+using CRG.Core;
 
-namespace HRCG.Geometry
+namespace CRG.Geometry
 {
     // A vertical rectangle standing on the segment Start -> End, spanning Bottom..Top in Y.
     public struct WallSegment

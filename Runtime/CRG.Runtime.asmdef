@@ -1,5 +1,5 @@
 {
-    "name": "hcrg.runtime",
+    "name": "CRG.Runtime",
     "rootNamespace": "",
     "references": [
         "Unity.ProBuilder",
@@ -16,7 +16,7 @@
         {
             "name": "com.unity.ai.navigation",
             "expression": "1.1.0",
-            "define": "HRCG_AI_NAVIGATION"
+            "define": "CRG_AI_NAVIGATION"
         }
     ],
     "noEngineReferences": false

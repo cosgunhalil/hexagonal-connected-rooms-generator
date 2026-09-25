@@ -1,11 +1,11 @@
 using UnityEditor;
 using UnityEngine;
-using HRCG.Runtime;
+using CRG.Runtime;
 
-namespace HRCG.Editor
+namespace CRG.Editor
 {
-    [CustomEditor(typeof(HRCGRuntimeComponent))]
-    public class HRCGRuntimeComponentInspector : UnityEditor.Editor
+    [CustomEditor(typeof(CRGRuntimeComponent))]
+    public class CRGRuntimeComponentInspector : UnityEditor.Editor
     {
         public override void OnInspectorGUI()
         {
@@ -13,7 +13,7 @@ namespace HRCG.Editor
 
             EditorGUILayout.Space();
 
-            HRCGRuntimeComponent component = (HRCGRuntimeComponent)target;
+            CRGRuntimeComponent component = (CRGRuntimeComponent)target;
 
             EditorGUILayout.LabelField("Generation Controls", EditorStyles.boldLabel);
 
@@ -78,7 +78,7 @@ namespace HRCG.Editor
                     EditorGUILayout.HelpBox($"Invalid parameters: {errorMessage}", MessageType.Error);
                 }
 
-                HRCGEditorGUI.NavMeshWarnings(component.parameters);
+                CRGEditorGUI.NavMeshWarnings(component.parameters);
             }
         }
     }

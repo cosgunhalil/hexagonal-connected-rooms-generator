@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
-using HRCG.Core;
-using HRCG.Geometry;
+using CRG.Core;
+using CRG.Geometry;
 using RangeAttribute = NUnit.Framework.RangeAttribute;
 
-namespace HRCG.Tests
+namespace CRG.Tests
 {
     public class HexMathTests
     {

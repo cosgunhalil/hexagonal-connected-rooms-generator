@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace HRCG.Core
+namespace CRG.Core
 {
     public class SharedWallData
     {
