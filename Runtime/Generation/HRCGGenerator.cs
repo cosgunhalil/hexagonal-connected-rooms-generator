@@ -77,6 +77,7 @@ namespace HRCG.Generation
             Debug.Log($"Generation complete: {generatedRooms} rooms in {iterations} iterations");
 
             EnsureMinimumConnections(grid);
+            AssignCeilings(grid);
             ValidateGeneration(grid);
 
             return grid;
@@ -181,6 +182,22 @@ namespace HRCG.Generation
             }
         }
 
+        // Runs after the layout is final, so CeilingChance never changes which rooms and doors a seed produces.
+        // At CeilingChance 1 no random numbers are drawn.
+        private void AssignCeilings(HexGrid grid)
+        {
+            if (!parameters.AddCeiling || parameters.CeilingChance >= 1f)
+                return;
+
+            List<Room> rooms = new List<Room>(grid.GetAllRooms());
+            rooms.Sort((a, b) => a.RoomID.CompareTo(b.RoomID));
+
+            foreach (Room room in rooms)
+            {
+                room.HasCeiling = random.NextDouble() < parameters.CeilingChance;
+            }
+        }
+
         // Rooms placed early may end up below MinConnectionsPerRoom; add doors to adjacent rooms where limits allow.
         private void EnsureMinimumConnections(HexGrid grid)
         {
@@ -245,6 +262,11 @@ namespace HRCG.Generation
 
             Debug.Log($"Validation complete:");
             Debug.Log($"  Total rooms: {grid.RoomCount}");
+            if (parameters.AddCeiling)
+            {
+                int covered = grid.GetAllRooms().Count(room => room.HasCeiling);
+                Debug.Log($"  Rooms with ceiling: {covered}/{grid.RoomCount} (Ceiling Chance {parameters.CeilingChance:F2})");
+            }
             Debug.Log($"  Total cells: {grid.CellCount}");
             Debug.Log($"  Total connections: {totalConnections / 2}");
             Debug.Log($"  Rooms with too few connections: {roomsWithTooFewConnections}");

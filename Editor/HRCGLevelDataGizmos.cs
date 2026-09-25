@@ -130,6 +130,9 @@ namespace HRCG.Editor
                 string doorsLabel = room.ConnectedRoomIDs.Count == 1 ? "door" : "doors";
                 string text = $"<color=#{color}>Room {room.RoomID}</color>\n{room.Cells.Count} hex · {room.ConnectedRoomIDs.Count} {doorsLabel}";
 
+                if (room.HasCeiling)
+                    text += " · ceiling";
+
                 if (data.showRoomRoles)
                     text += GetRoleLine(room);
 

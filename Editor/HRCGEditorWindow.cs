@@ -113,8 +113,17 @@ namespace HRCG.Editor
                 parameters.WallThickness, 0f, parameters.HexSize * GenerationParameters.MaxWallThicknessRatio);
 
             parameters.AddCeiling = EditorGUILayout.Toggle(
-                new GUIContent("Add Ceiling", "Cover every room with a ceiling at wall height (visible from inside only)"),
+                new GUIContent("Add Ceiling", "Cover rooms with a ceiling at wall height (visible from inside only)"),
                 parameters.AddCeiling);
+
+            using (new EditorGUI.DisabledScope(!parameters.AddCeiling))
+            {
+                EditorGUI.indentLevel++;
+                parameters.CeilingChance = EditorGUILayout.Slider(
+                    new GUIContent("Ceiling Chance", "Chance that each room gets a ceiling. 1 = every room, 0 = none. Does not change the layout of a seed"),
+                    parameters.CeilingChance, 0f, 1f);
+                EditorGUI.indentLevel--;
+            }
 
             parameters.TargetRoomCount = EditorGUILayout.IntSlider(
                 new GUIContent("Room Count", "Target number of rooms to generate"),

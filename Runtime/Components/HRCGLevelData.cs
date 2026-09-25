@@ -27,6 +27,7 @@ namespace HRCG.Runtime
             public int DistanceFromStart;
             public RoomRole Role;
             public Transform SpawnPoint;
+            public bool HasCeiling;
 
             public bool IsDeadEnd => ConnectedRoomIDs.Count == 1;
         }
@@ -64,7 +65,7 @@ namespace HRCG.Runtime
         public RoomData StartRoom => rooms.Find(room => room.Role == RoomRole.Start);
         public RoomData EndRoom => rooms.Find(room => room.Role == RoomRole.End);
 
-        public void Initialize(HexGrid grid, float wallHeight, float doorHeight, float doorWidthRatio)
+        public void Initialize(HexGrid grid, float wallHeight, float doorHeight, float doorWidthRatio, bool ceilingsEnabled = false)
         {
             hexSize = grid.HexSize;
             this.wallHeight = wallHeight;
@@ -78,7 +79,7 @@ namespace HRCG.Runtime
 
             foreach (Room room in sortedRooms)
             {
-                RoomData roomData = new RoomData { RoomID = room.RoomID };
+                RoomData roomData = new RoomData { RoomID = room.RoomID, HasCeiling = ceilingsEnabled && room.HasCeiling };
                 roomData.Cells.AddRange(room.Cells);
                 roomData.ConnectedRoomIDs.AddRange(room.GetConnectedRoomIDs());
                 roomData.ConnectedRoomIDs.Sort();

@@ -119,7 +119,7 @@ namespace HRCG.Geometry
                 return null;
 
             HRCGLevelData data = level.AddComponent<HRCGLevelData>();
-            data.Initialize(grid, wallHeight, doorHeight, doorWidthRatio);
+            data.Initialize(grid, wallHeight, doorHeight, doorWidthRatio, addCeiling);
 
             if (options != null)
             {
@@ -231,7 +231,7 @@ namespace HRCG.Geometry
                         AddCellWalls(builder, cell);
                 }
 
-                if (includeCeiling)
+                if (includeCeiling && grid.GetRoom(cell.RoomID).HasCeiling)
                 {
                     builder.AddCeiling(cell.Coordinate, ceilingMaterial != null ? ceilingMaterial : floorMaterial);
                 }

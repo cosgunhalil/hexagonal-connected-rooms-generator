@@ -42,6 +42,10 @@ namespace HRCG.Generation
         [Tooltip("Cover every room with a ceiling at wall height (visible from inside only)")]
         public bool AddCeiling = false;
 
+        [Tooltip("With Add Ceiling, the chance that each room gets a ceiling. 1 = every room, 0 = none")]
+        [Range(0f, 1f)]
+        public float CeilingChance = 1f;
+
         [Header("Room Size Settings")]
         [Tooltip("Minimum number of hexagons per room")]
         [Range(1, 20)]
@@ -168,6 +172,12 @@ namespace HRCG.Generation
                 return false;
             }
 
+            if (CeilingChance < 0f || CeilingChance > 1f)
+            {
+                errorMessage = "CeilingChance must be between 0 and 1";
+                return false;
+            }
+
             if (MinHexagonsPerRoom <= 0)
             {
                 errorMessage = "MinHexagonsPerRoom must be at least 1";
@@ -248,6 +258,7 @@ namespace HRCG.Generation
                 DoorWidthRatio = 0.2f,
                 WallThickness = 0f,
                 AddCeiling = false,
+                CeilingChance = 1f,
                 MinHexagonsPerRoom = 1,
                 MaxHexagonsPerRoom = 5,
                 TargetRoomCount = 10,

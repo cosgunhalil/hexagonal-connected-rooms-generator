@@ -9,6 +9,9 @@ namespace HRCG.Core
         public List<AxialCoord> Cells { get; private set; }
         public Dictionary<int, SharedWallData> Connections { get; private set; }
 
+        // Whether this room is covered when ceilings are enabled (see GenerationParameters.CeilingChance).
+        public bool HasCeiling { get; set; } = true;
+
         public Room(int roomID)
         {
             RoomID = roomID;

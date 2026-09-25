@@ -58,7 +58,8 @@ Hexagons are pointy-top in the XZ plane, and +Z is north.
 | | Door Height | 2.5 | Height of door openings (at most Wall Height). |
 | | Door Width Ratio | 0.2 | Door width as a fraction of the edge length (0.2 = 1/5 of the edge). |
 | | Wall Thickness | 0 | 0 builds zero-thickness, double-sided walls. Above 0 builds solid walls: a wall between two rooms is split half and half across the edge, and an outer wall lies fully inside its room. At most a quarter of Hex Size, and doors must stay clear of the wall corners. |
-| | Add Ceiling | Off | Covers every room with a ceiling at wall height. Ceilings face down, so they are visible from inside and you can still look into the level from above. |
+| | Add Ceiling | Off | Covers rooms with a ceiling at wall height. Ceilings face down, so they are visible from inside and you can still look into the level from above. |
+| | Ceiling Chance | 1 | With Add Ceiling, the chance that each room gets a ceiling (1 = every room, 0 = none), for example to mix indoor and open-air rooms. Rooms are picked after the layout is final, so changing it never changes a seed's rooms or doors. |
 | Room size | Min / Max Hexagons Per Room | 1 / 5 | Room size range, in hexagons. |
 | Generation | Target Room Count | 10 | Number of rooms to generate. |
 | | Start Position | (0, 0) | Axial coordinate of the first room. |
@@ -138,7 +139,7 @@ Every generated level has an `HRCGLevelData` component with the layout, stored w
 
 | Member | Description |
 |---|---|
-| `Rooms` | `RoomData` per room: `RoomID`, `Cells`, `ConnectedRoomIDs`, `DistanceFromStart`, `Role` (Start / End / Normal), `SpawnPoint`, `IsDeadEnd`. |
+| `Rooms` | `RoomData` per room: `RoomID`, `Cells`, `ConnectedRoomIDs`, `DistanceFromStart`, `Role` (Start / End / Normal), `SpawnPoint`, `IsDeadEnd`, `HasCeiling`. |
 | `Doors` | `DoorData` per door: `RoomA`, `RoomB`, `CellA`, `EdgeA`, `DoorObject` (the placed prefab, if any). |
 | `StartRoom`, `EndRoom` | The first room placed, and the room farthest from it by door count. |
 | `GetRoom(id)`, `GetSpawnPoint(id)` | Lookups by room ID. |

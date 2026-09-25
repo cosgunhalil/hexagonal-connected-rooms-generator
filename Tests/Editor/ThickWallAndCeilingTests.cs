@@ -132,6 +132,71 @@ namespace HRCG.Tests
         }
 
         [Test]
+        public void CeilingChanceZero_BuildsNoCeilings()
+        {
+            parameters.AddCeiling = true;
+            parameters.CeilingChance = 0f;
+            GameObject level = Generate();
+
+            Assert.That(GetTriangles(level).Any(t => IsHorizontalAt(t, parameters.WallHeight, up: false)), Is.False);
+            Assert.That(level.GetComponent<HRCGLevelData>().Rooms.Any(room => room.HasCeiling), Is.False);
+        }
+
+        [Test]
+        public void CeilingChanceOne_CoversEveryRoom()
+        {
+            parameters.AddCeiling = true;
+            parameters.CeilingChance = 1f;
+
+            Assert.That(Generate().GetComponent<HRCGLevelData>().Rooms.All(room => room.HasCeiling), Is.True);
+        }
+
+        [Test]
+        public void PartialCeilingChance_CoversExactlyTheRoomsMarkedAsCovered()
+        {
+            parameters.AddCeiling = true;
+            parameters.CeilingChance = 0.5f;
+            bool sawMixedLevel = false;
+
+            for (int seed = 0; seed < 10; seed++)
+            {
+                parameters.RandomSeed = seed;
+                GameObject level = Generate();
+                List<HRCGLevelData.RoomData> rooms = level.GetComponent<HRCGLevelData>().Rooms.ToList();
+
+                int coveredCells = rooms.Where(room => room.HasCeiling).Sum(room => room.Cells.Count);
+                float expected = coveredCells * HexArea(parameters.HexSize);
+                float actual = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).Sum(t => t.Area);
+                Assert.That(actual, Is.EqualTo(expected).Within(Mathf.Max(expected, 1f) * 1e-3f), $"seed {seed}");
+
+                sawMixedLevel |= rooms.Any(room => room.HasCeiling) && rooms.Any(room => !room.HasCeiling);
+            }
+
+            Assert.That(sawMixedLevel, Is.True, "a 0.5 chance should produce levels with both covered and open rooms");
+        }
+
+        [Test]
+        public void CeilingChance_IsDeterministic_AndNeverChangesTheLayout()
+        {
+            parameters.AddCeiling = true;
+
+            for (int seed = 0; seed < 10; seed++)
+            {
+                parameters.RandomSeed = seed;
+
+                parameters.CeilingChance = 1f;
+                string layoutWithAllCeilings = LayoutFingerprint(new HRCGGenerator().Generate(parameters), includeCeilings: false);
+
+                parameters.CeilingChance = 0.4f;
+                HexGrid first = new HRCGGenerator().Generate(parameters);
+                HexGrid second = new HRCGGenerator().Generate(parameters);
+
+                Assert.That(LayoutFingerprint(first, includeCeilings: false), Is.EqualTo(layoutWithAllCeilings), $"seed {seed}: layout changed");
+                Assert.That(LayoutFingerprint(first, includeCeilings: true), Is.EqualTo(LayoutFingerprint(second, includeCeilings: true)), $"seed {seed}: ceilings differ");
+            }
+        }
+
+        [Test]
         public void NoCeiling_ByDefault()
         {
             parameters = GenerationParameters.CreateDefault();
@@ -270,6 +335,25 @@ namespace HRCG.Tests
         {
             created.Add(obj);
             return obj;
+        }
+
+        private static string LayoutFingerprint(HexGrid grid, bool includeCeilings)
+        {
+            System.Text.StringBuilder builder = new System.Text.StringBuilder();
+
+            foreach (Room room in grid.GetAllRooms().OrderBy(r => r.RoomID))
+            {
+                builder.Append(room.RoomID).Append(':');
+                foreach (AxialCoord cell in room.Cells)
+                    builder.Append(cell).Append(',');
+                foreach (KeyValuePair<int, SharedWallData> connection in room.Connections.OrderBy(c => c.Key))
+                    builder.Append('>').Append(connection.Key).Append('@').Append(connection.Value.SharedEdges[0]);
+                if (includeCeilings)
+                    builder.Append(room.HasCeiling ? "C" : "O");
+                builder.Append(';');
+            }
+
+            return builder.ToString();
         }
 
         private static float HexArea(float circumradius)
