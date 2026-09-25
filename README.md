@@ -7,7 +7,7 @@ On top of the geometry it can add colliders, bake a NavMesh, place a door prefab
 ## Features
 
 - **Connected by construction**: every room is reachable from the first one through doors. Each pair of connected rooms gets exactly one door, centered on a shared edge.
-- **Single mesh output**: one `ProBuilderMesh` with separate floor and wall material slots, still editable with ProBuilder tools. Optionally one mesh per room.
+- **Single mesh output**: one `ProBuilderMesh` with separate floor, wall and ceiling material slots, still editable with ProBuilder tools. Walls can be zero-thickness planes or solid walls of any thickness, with optional ceilings. Optionally one mesh per room.
 - **Reproducible**: the same seed and settings always produce the same level.
 - **Layout control**: bias between compact and sprawling levels, and control how many loops the room graph has.
 - **Gameplay-ready extras**: MeshColliders, NavMesh baking (optional package), door prefabs, per-room spawn points, start/end room roles and distance from the start.
@@ -57,6 +57,8 @@ Hexagons are pointy-top in the XZ plane, and +Z is north.
 | Walls | Wall Height | 3 | Height of walls. |
 | | Door Height | 2.5 | Height of door openings (at most Wall Height). |
 | | Door Width Ratio | 0.2 | Door width as a fraction of the edge length (0.2 = 1/5 of the edge). |
+| | Wall Thickness | 0 | 0 builds zero-thickness, double-sided walls. Above 0 builds solid walls: a wall between two rooms is split half and half across the edge, and an outer wall lies fully inside its room. At most a quarter of Hex Size, and doors must stay clear of the wall corners. |
+| | Add Ceiling | Off | Covers every room with a ceiling at wall height. Ceilings face down, so they are visible from inside and you can still look into the level from above. |
 | Room size | Min / Max Hexagons Per Room | 1 / 5 | Room size range, in hexagons. |
 | Generation | Target Room Count | 10 | Number of rooms to generate. |
 | | Start Position | (0, 0) | Axial coordinate of the first room. |
@@ -76,7 +78,7 @@ Hexagons are pointy-top in the XZ plane, and +Z is north.
 
 ## Materials and door prefabs
 
-- **Floor / Wall Material**: optional. Without materials, ProBuilder's default material is used.
+- **Floor / Wall / Ceiling Material**: optional. Without materials, ProBuilder's default material is used; an empty ceiling material falls back to the floor material.
 - **Door Prefab**: optional prefab placed in every doorway at floor level. Its **+Z axis points through the door** (from one room into the other) and its **X axis runs along the opening**, so model doors facing +Z and centered on their pivot. The NavMesh is baked *before* doors are placed, so closed door models do not block it. Add a `NavMeshObstacle` to the prefab if doors should block agents.
 
 ## NavMesh
@@ -152,7 +154,7 @@ Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → T
 
 ## Limitations
 
-- Walls are zero-thickness, double-sided planes, and there are no ceilings.
+- With thick walls, outer corners where a room wraps around its neighbor are chamfered rather than rounded.
 - Min Connections Per Room is best effort for rooms at the edge of the level.
 - The level is built around the origin; move the generated GameObject to place it elsewhere.
 

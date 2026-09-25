@@ -7,6 +7,11 @@ namespace HRCG.Core
     // 60 * i degrees, i.e. towards the neighbor in HexDirection i.
     public static class HexMath
     {
+        // Worst-case distance along an edge between a hex corner and the end of a thick wall's inner face,
+        // per unit of wall thickness (an interior half wall of depth t/2 meeting an exterior wall of depth t).
+        // Door openings must stay clear of it.
+        public const float ThickWallCornerInsetPerThickness = 0.8660254037844386f;
+
         private const float SquareRootOfThreeHalf = 0.8660254037844386f;
         private const int HexagonVertexCount = 6;
         private const int HexagonEdgeCount = 6;

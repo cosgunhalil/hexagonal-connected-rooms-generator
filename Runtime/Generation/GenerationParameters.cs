@@ -13,6 +13,10 @@ namespace HRCG.Generation
     [Serializable]
     public class GenerationParameters
     {
+        public const float MaxWallThicknessRatio = 0.25f;
+
+        private const float MinDoorClearance = 0.01f;
+
         [Header("Hexagon Settings")]
         [Tooltip("Size of each hexagon edge in world units")]
         [Range(1f, 50f)]
@@ -30,6 +34,13 @@ namespace HRCG.Generation
         [Tooltip("Door width as a fraction of the hexagon edge length (0.2 = 1/5 of the edge)")]
         [Range(0.05f, 1f)]
         public float DoorWidthRatio = 0.2f;
+
+        [Tooltip("Wall thickness in world units. 0 builds zero-thickness double-sided walls")]
+        [Range(0f, 5f)]
+        public float WallThickness = 0f;
+
+        [Tooltip("Cover every room with a ceiling at wall height (visible from inside only)")]
+        public bool AddCeiling = false;
 
         [Header("Room Size Settings")]
         [Tooltip("Minimum number of hexagons per room")]
@@ -143,6 +154,20 @@ namespace HRCG.Generation
                 return false;
             }
 
+            if (WallThickness < 0f || WallThickness > HexSize * MaxWallThicknessRatio)
+            {
+                errorMessage = $"WallThickness must be between 0 and {HexSize * MaxWallThicknessRatio:F2} (a quarter of HexSize)";
+                return false;
+            }
+
+            // Wall corners move the inner face of a wall inwards along the edge; the door opening must stay clear of them.
+            if (WallThickness > 0f &&
+                (HexSize - HexSize * DoorWidthRatio) / 2f < WallThickness * HexMath.ThickWallCornerInsetPerThickness + MinDoorClearance)
+            {
+                errorMessage = "Doors are too wide for this WallThickness; lower DoorWidthRatio or WallThickness";
+                return false;
+            }
+
             if (MinHexagonsPerRoom <= 0)
             {
                 errorMessage = "MinHexagonsPerRoom must be at least 1";
@@ -221,6 +246,8 @@ namespace HRCG.Generation
                 WallHeight = 3f,
                 DoorHeight = 2.5f,
                 DoorWidthRatio = 0.2f,
+                WallThickness = 0f,
+                AddCeiling = false,
                 MinHexagonsPerRoom = 1,
                 MaxHexagonsPerRoom = 5,
                 TargetRoomCount = 10,

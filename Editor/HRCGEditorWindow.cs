@@ -11,6 +11,7 @@ namespace HRCG.Editor
         private GenerationParameters parameters;
         private Material floorMaterial;
         private Material wallMaterial;
+        private Material ceilingMaterial;
         private GameObject doorPrefab;
         private GameObject lastGeneratedLevel;
         
@@ -106,6 +107,14 @@ namespace HRCG.Editor
                 parameters.DoorWidthRatio, 0.05f, 1f);
 
             EditorGUILayout.LabelField(" ", $"Door width: {parameters.HexSize * parameters.DoorWidthRatio:F2} units", EditorStyles.miniLabel);
+
+            parameters.WallThickness = EditorGUILayout.Slider(
+                new GUIContent("Wall Thickness", "0 = zero-thickness double-sided walls; above 0 = solid walls. Walls between rooms are split half and half, outer walls are fully inside the room"),
+                parameters.WallThickness, 0f, parameters.HexSize * GenerationParameters.MaxWallThicknessRatio);
+
+            parameters.AddCeiling = EditorGUILayout.Toggle(
+                new GUIContent("Add Ceiling", "Cover every room with a ceiling at wall height (visible from inside only)"),
+                parameters.AddCeiling);
 
             parameters.TargetRoomCount = EditorGUILayout.IntSlider(
                 new GUIContent("Room Count", "Target number of rooms to generate"),
@@ -224,6 +233,13 @@ namespace HRCG.Editor
             wallMaterial = (Material)EditorGUILayout.ObjectField(
                 new GUIContent("Wall Material", "Material for wall meshes"),
                 wallMaterial, typeof(Material), false);
+
+            using (new EditorGUI.DisabledScope(!parameters.AddCeiling))
+            {
+                ceilingMaterial = (Material)EditorGUILayout.ObjectField(
+                    new GUIContent("Ceiling Material", "Material for ceilings (uses the floor material when empty)"),
+                    ceilingMaterial, typeof(Material), false);
+            }
         }
 
         private void DrawAdvancedSettings()
@@ -378,7 +394,7 @@ namespace HRCG.Editor
             HexGrid grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geometryGenerator = LevelGeometryGenerator.FromParameters(grid, parameters);
-            geometryGenerator.SetMaterials(floorMaterial, wallMaterial);
+            geometryGenerator.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);
             geometryGenerator.SetDoorPrefab(doorPrefab);
 
             lastGeneratedLevel = buildGeometry(geometryGenerator);

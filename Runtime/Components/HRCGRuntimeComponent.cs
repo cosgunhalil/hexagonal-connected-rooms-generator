@@ -12,6 +12,8 @@ namespace HRCG.Runtime
         [Header("Materials")]
         public Material floorMaterial;
         public Material wallMaterial;
+        [Tooltip("Used when Add Ceiling is enabled; falls back to the floor material when empty")]
+        public Material ceilingMaterial;
 
         [Header("Doors")]
         [Tooltip("Optional prefab placed in every doorway (+Z points through the door)")]
@@ -70,7 +72,8 @@ namespace HRCG.Runtime
                 parameters,
                 floorMaterial,
                 wallMaterial,
-                doorPrefab
+                doorPrefab,
+                ceilingMaterial
             );
 
             if (generatedLevel != null)
@@ -86,7 +89,7 @@ namespace HRCG.Runtime
             var grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geoGen = LevelGeometryGenerator.FromParameters(grid, parameters);
-            geoGen.SetMaterials(floorMaterial, wallMaterial);
+            geoGen.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);
             geoGen.SetDoorPrefab(doorPrefab);
 
             generatedLevel = geoGen.GenerateLevelSeparateByRoom();

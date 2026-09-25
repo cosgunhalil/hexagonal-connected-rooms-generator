@@ -12,33 +12,43 @@ namespace HRCG.Geometry
         private readonly float wallHeight;
         private readonly float doorHeight;
         private readonly float doorWidthRatio;
+        private readonly float wallThickness;
+        private readonly bool addCeiling;
         private Material floorMaterial;
         private Material wallMaterial;
+        private Material ceilingMaterial;
         private GameObject doorPrefab;
 
         // Post-processing options (colliders, NavMesh, spawn points). Null means geometry only.
         private GenerationParameters options;
 
-        public LevelGeometryGenerator(HexGrid grid, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f)
+        // wallThickness 0 builds zero-thickness double-sided walls; above 0 builds solid walls of that thickness.
+        public LevelGeometryGenerator(HexGrid grid, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f,
+            float wallThickness = 0f, bool addCeiling = false)
         {
             this.grid = grid;
             this.wallHeight = wallHeight;
             this.doorHeight = doorHeight;
             this.doorWidthRatio = doorWidthRatio;
+            this.wallThickness = Mathf.Max(0f, wallThickness);
+            this.addCeiling = addCeiling;
         }
 
         public static LevelGeometryGenerator FromParameters(HexGrid grid, GenerationParameters parameters)
         {
-            return new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight, parameters.DoorWidthRatio)
+            return new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight, parameters.DoorWidthRatio,
+                parameters.WallThickness, parameters.AddCeiling)
             {
                 options = parameters
             };
         }
 
-        public void SetMaterials(Material floor, Material wall)
+        // A null ceiling material falls back to the floor material.
+        public void SetMaterials(Material floor, Material wall, Material ceiling = null)
         {
             floorMaterial = floor;
             wallMaterial = wall;
+            ceilingMaterial = ceiling;
         }
 
         // Optional prefab placed in every doorway. Its +Z axis points through the door (from RoomA into RoomB)
@@ -50,7 +60,7 @@ namespace HRCG.Geometry
 
         public GameObject GenerateLevel()
         {
-            return FinishLevel(BuildMesh("Generated Level", GetRoomCells(), includeFloors: true, includeWalls: true));
+            return FinishLevel(BuildMesh("Generated Level", GetRoomCells(), includeFloors: true, includeWalls: true, includeCeiling: addCeiling));
         }
 
         public GameObject GenerateLevelSeparateByRoom()
@@ -69,7 +79,7 @@ namespace HRCG.Geometry
                     }
                 }
 
-                GameObject roomObject = BuildMesh($"Room_{room.RoomID}", roomCells, includeFloors: true, includeWalls: true);
+                GameObject roomObject = BuildMesh($"Room_{room.RoomID}", roomCells, includeFloors: true, includeWalls: true, includeCeiling: addCeiling);
                 if (roomObject != null)
                 {
                     roomObject.transform.SetParent(levelRoot.transform, false);
@@ -81,21 +91,22 @@ namespace HRCG.Geometry
 
         public GameObject GenerateFloorOnly()
         {
-            return FinishLevel(BuildMesh("Generated Level (Floor Only)", GetRoomCells(), includeFloors: true, includeWalls: false));
+            return FinishLevel(BuildMesh("Generated Level (Floor Only)", GetRoomCells(), includeFloors: true, includeWalls: false, includeCeiling: false));
         }
 
         public GameObject GenerateWallsOnly()
         {
-            return FinishLevel(BuildMesh("Generated Level (Walls Only)", GetRoomCells(), includeFloors: false, includeWalls: true));
+            return FinishLevel(BuildMesh("Generated Level (Walls Only)", GetRoomCells(), includeFloors: false, includeWalls: true, includeCeiling: false));
         }
 
-        public static GameObject GenerateComplete(GenerationParameters parameters, Material floorMaterial = null, Material wallMaterial = null, GameObject doorPrefab = null)
+        public static GameObject GenerateComplete(GenerationParameters parameters, Material floorMaterial = null, Material wallMaterial = null,
+            GameObject doorPrefab = null, Material ceilingMaterial = null)
         {
             HRCGGenerator generator = new HRCGGenerator();
             HexGrid grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geometryGenerator = FromParameters(grid, parameters);
-            geometryGenerator.SetMaterials(floorMaterial, wallMaterial);
+            geometryGenerator.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);
             geometryGenerator.SetDoorPrefab(doorPrefab);
 
             return geometryGenerator.GenerateLevel();
@@ -201,7 +212,7 @@ namespace HRCG.Geometry
             return roomCells;
         }
 
-        private GameObject BuildMesh(string name, List<HexCell> cells, bool includeFloors, bool includeWalls)
+        private GameObject BuildMesh(string name, List<HexCell> cells, bool includeFloors, bool includeWalls, bool includeCeiling)
         {
             ProBuilderMeshBuilder builder = new ProBuilderMeshBuilder(grid.HexSize, wallHeight, doorHeight, doorWidthRatio);
 
@@ -214,7 +225,15 @@ namespace HRCG.Geometry
 
                 if (includeWalls)
                 {
-                    AddCellWalls(builder, cell);
+                    if (wallThickness > 0f)
+                        AddCellThickWalls(builder, cell);
+                    else
+                        AddCellWalls(builder, cell);
+                }
+
+                if (includeCeiling)
+                {
+                    builder.AddCeiling(cell.Coordinate, ceilingMaterial != null ? ceilingMaterial : floorMaterial);
                 }
             }
 
@@ -252,6 +271,35 @@ namespace HRCG.Geometry
                 {
                     builder.AddWall(cell.Coordinate, edgeIndex, wallMaterial);
                 }
+            }
+        }
+
+        // Every room cell builds its own side of each of its walls: half the thickness towards another room,
+        // the full thickness (plus an outer face) towards empty space. Doors are always between rooms.
+        private void AddCellThickWalls(ProBuilderMeshBuilder builder, HexCell cell)
+        {
+            float[] depths = new float[6];
+            bool[] exterior = new bool[6];
+
+            for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+            {
+                WallFlag flag = cell.GetEdgeFlag(edgeIndex);
+                if (!flag.HasFlag(WallFlag.Wall) && !flag.HasFlag(WallFlag.HasDoor))
+                    continue;
+
+                HexCell neighbor = grid.GetCell(cell.Coordinate.GetNeighbor(edgeIndex));
+                exterior[edgeIndex] = neighbor == null || !neighbor.IsPartOfRoom();
+                depths[edgeIndex] = exterior[edgeIndex] ? wallThickness : wallThickness / 2f;
+            }
+
+            for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+            {
+                if (depths[edgeIndex] <= 0f)
+                    continue;
+
+                ThickWallStrip strip = HexGeometry.GetThickWallStrip(cell.Coordinate, edgeIndex, grid.HexSize, depths);
+                bool hasDoor = cell.GetEdgeFlag(edgeIndex).HasFlag(WallFlag.HasDoor) && !exterior[edgeIndex];
+                builder.AddThickWall(strip, hasDoor, exterior[edgeIndex], wallMaterial);
             }
         }
 
