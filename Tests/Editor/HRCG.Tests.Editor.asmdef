@@ -5,7 +5,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Unity.ProBuilder",
-        "hcrg.runtime"
+        "hcrg.runtime",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [
         "Editor"
@@ -20,6 +21,12 @@
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"
     ],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ai.navigation",
+            "expression": "1.0.0",
+            "define": "HRCG_AI_NAVIGATION"
+        }
+    ],
     "noEngineReferences": false
 }

@@ -4,6 +4,12 @@ using UnityEngine;
 
 namespace HRCG.Generation
 {
+    public enum NavMeshGeometrySource
+    {
+        RenderMeshes,
+        PhysicsColliders
+    }
+
     [Serializable]
     public class GenerationParameters
     {
@@ -54,6 +60,33 @@ namespace HRCG.Generation
         [Tooltip("New rooms leave one connection slot free so later rooms can attach to them. " +
                  "Produces larger levels at low MaxConnectionsPerRoom, with fewer loops")]
         public bool ReserveConnectionForGrowth = true;
+
+        [Header("Layout")]
+        [Tooltip("-1 grows compact, clustered levels; 0 is uniform random; 1 grows long, sprawling branches")]
+        [Range(-1f, 1f)]
+        public float LayoutBias = 0f;
+
+        [Tooltip("Chance that a new room also connects to each additional adjacent room after its first door. " +
+                 "0 = tree (no loops), 1 = connect whenever limits allow")]
+        [Range(0f, 1f)]
+        public float LoopChance = 1f;
+
+        [Header("Physics & Navigation")]
+        [Tooltip("Add a MeshCollider to the generated level mesh")]
+        public bool AddMeshCollider = true;
+
+        [Tooltip("Bake a NavMesh for the level (requires the AI Navigation package)")]
+        public bool BakeNavMesh = false;
+
+        [Tooltip("NavMesh agent type ID from Navigation settings (0 = Humanoid)")]
+        public int NavMeshAgentTypeID = 0;
+
+        [Tooltip("Geometry the NavMesh is baked from")]
+        public NavMeshGeometrySource NavMeshGeometry = NavMeshGeometrySource.RenderMeshes;
+
+        [Header("Spawns")]
+        [Tooltip("Create an empty spawn point Transform inside every room")]
+        public bool CreateSpawnPoints = true;
 
         [Header("Randomization")]
         [Tooltip("Random seed for reproducible generation (-1 for random)")]
@@ -146,6 +179,24 @@ namespace HRCG.Generation
                 return false;
             }
 
+            if (LayoutBias < -1f || LayoutBias > 1f)
+            {
+                errorMessage = "LayoutBias must be between -1 and 1";
+                return false;
+            }
+
+            if (LoopChance < 0f || LoopChance > 1f)
+            {
+                errorMessage = "LoopChance must be between 0 and 1";
+                return false;
+            }
+
+            if (BakeNavMesh && NavMeshGeometry == NavMeshGeometrySource.PhysicsColliders && !AddMeshCollider)
+            {
+                errorMessage = "Baking the NavMesh from colliders requires AddMeshCollider";
+                return false;
+            }
+
             if (MaxIterations <= 0)
             {
                 errorMessage = "MaxIterations must be greater than 0";
@@ -177,6 +228,13 @@ namespace HRCG.Generation
                 MinConnectionsPerRoom = 1,
                 MaxConnectionsPerRoom = 6,
                 ReserveConnectionForGrowth = true,
+                LayoutBias = 0f,
+                LoopChance = 1f,
+                AddMeshCollider = true,
+                BakeNavMesh = false,
+                NavMeshAgentTypeID = 0,
+                NavMeshGeometry = NavMeshGeometrySource.RenderMeshes,
+                CreateSpawnPoints = true,
                 RandomSeed = -1,
                 MaxIterations = 1000,
                 MaxRetriesPerRoom = 3

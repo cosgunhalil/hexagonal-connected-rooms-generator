@@ -8,6 +8,8 @@ namespace HRCG.Generation
 {
     public class HRCGGenerator
     {
+        private const int MaxLayoutCandidates = 8;
+
         private GenerationParameters parameters;
         private RoomShapeGenerator shapeGenerator;
         private ConnectionAnalyzer connectionAnalyzer;
@@ -114,7 +116,7 @@ namespace HRCG.Generation
             int maxNewConnections = parameters.ReserveConnectionForGrowth
                 ? Math.Max(1, parameters.MaxConnectionsPerRoom - 1)
                 : int.MaxValue;
-            connectionAnalyzer.ConnectToNeighbors(grid, room, random, maxNewConnections);
+            connectionAnalyzer.ConnectToNeighbors(grid, room, random, maxNewConnections, parameters.LoopChance);
 
             return room;
         }
@@ -191,10 +193,28 @@ namespace HRCG.Generation
             }
         }
 
+        // Tournament selection: LayoutBias sets how many random frontier cells compete, and the one
+        // farthest from (bias > 0) or closest to (bias < 0) the start position wins.
+        // With bias 0 this is a single uniform pick.
         private AxialCoord SelectFromFrontier(HashSet<AxialCoord> frontier)
         {
-            int index = random.Next(frontier.Count);
-            return frontier.ElementAt(index);
+            List<AxialCoord> cells = frontier.ToList();
+            AxialCoord best = cells[random.Next(cells.Count)];
+
+            int candidates = 1 + (int)Math.Round(Math.Abs(parameters.LayoutBias) * (MaxLayoutCandidates - 1));
+            bool preferFar = parameters.LayoutBias > 0f;
+
+            for (int i = 1; i < candidates; i++)
+            {
+                AxialCoord candidate = cells[random.Next(cells.Count)];
+                int candidateDistance = candidate.DistanceTo(parameters.StartPosition);
+                int bestDistance = best.DistanceTo(parameters.StartPosition);
+
+                if (preferFar ? candidateDistance > bestDistance : candidateDistance < bestDistance)
+                    best = candidate;
+            }
+
+            return best;
         }
 
         private void ValidateGeneration(HexGrid grid)

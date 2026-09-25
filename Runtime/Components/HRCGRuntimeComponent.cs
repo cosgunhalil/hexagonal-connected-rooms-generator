@@ -13,6 +13,10 @@ namespace HRCG.Runtime
         public Material floorMaterial;
         public Material wallMaterial;
 
+        [Header("Doors")]
+        [Tooltip("Optional prefab placed in every doorway (+Z points through the door)")]
+        public GameObject doorPrefab;
+
         [Header("Generation Options")]
         public bool generateOnStart = true;
         public bool generateSeparateByRoom = false;
@@ -65,7 +69,8 @@ namespace HRCG.Runtime
             generatedLevel = LevelGeometryGenerator.GenerateComplete(
                 parameters,
                 floorMaterial,
-                wallMaterial
+                wallMaterial,
+                doorPrefab
             );
 
             if (generatedLevel != null)
@@ -82,6 +87,7 @@ namespace HRCG.Runtime
 
             LevelGeometryGenerator geoGen = LevelGeometryGenerator.FromParameters(grid, parameters);
             geoGen.SetMaterials(floorMaterial, wallMaterial);
+            geoGen.SetDoorPrefab(doorPrefab);
 
             generatedLevel = geoGen.GenerateLevelSeparateByRoom();
 

@@ -9,12 +9,26 @@ namespace HRCG.Runtime
     // scene saves. Positions are in the level's local space (the mesh is built around its origin).
     public class HRCGLevelData : MonoBehaviour
     {
+        public enum RoomRole
+        {
+            Normal,
+            Start,
+            End
+        }
+
         [Serializable]
         public class RoomData
         {
             public int RoomID;
             public List<AxialCoord> Cells = new List<AxialCoord>();
             public List<int> ConnectedRoomIDs = new List<int>();
+
+            [Tooltip("Number of doors on the shortest path from the start room")]
+            public int DistanceFromStart;
+            public RoomRole Role;
+            public Transform SpawnPoint;
+
+            public bool IsDeadEnd => ConnectedRoomIDs.Count == 1;
         }
 
         [Serializable]
@@ -24,6 +38,7 @@ namespace HRCG.Runtime
             public int RoomB;
             public AxialCoord CellA;
             public int EdgeA;
+            public Transform DoorObject;
         }
 
         [Header("Scene Overlays")]
@@ -31,6 +46,7 @@ namespace HRCG.Runtime
         public bool showRoomLabels = true;
         public bool showDoors = true;
         public bool showConnections = true;
+        public bool showRoomRoles = true;
 
         [SerializeField, HideInInspector] private float hexSize;
         [SerializeField, HideInInspector] private float wallHeight;
@@ -44,6 +60,9 @@ namespace HRCG.Runtime
         public float DoorHeight => doorHeight;
         public IReadOnlyList<RoomData> Rooms => rooms;
         public IReadOnlyList<DoorData> Doors => doors;
+
+        public RoomData StartRoom => rooms.Find(room => room.Role == RoomRole.Start);
+        public RoomData EndRoom => rooms.Find(room => room.Role == RoomRole.End);
 
         public void Initialize(HexGrid grid, float wallHeight, float doorHeight, float doorWidthRatio)
         {
@@ -83,6 +102,58 @@ namespace HRCG.Runtime
                     }
                 }
             }
+
+            AssignRoles();
+        }
+
+        public Transform GetSpawnPoint(int roomID)
+        {
+            return GetRoom(roomID)?.SpawnPoint;
+        }
+
+        // Breadth-first search over doors from the first room placed (lowest ID).
+        private void AssignRoles()
+        {
+            if (rooms.Count == 0)
+                return;
+
+            foreach (RoomData room in rooms)
+            {
+                room.DistanceFromStart = -1;
+                room.Role = RoomRole.Normal;
+            }
+
+            RoomData start = rooms[0];
+            start.DistanceFromStart = 0;
+            start.Role = RoomRole.Start;
+
+            Queue<RoomData> queue = new Queue<RoomData>();
+            queue.Enqueue(start);
+
+            while (queue.Count > 0)
+            {
+                RoomData current = queue.Dequeue();
+                foreach (int neighborID in current.ConnectedRoomIDs)
+                {
+                    RoomData neighbor = GetRoom(neighborID);
+                    if (neighbor != null && neighbor.DistanceFromStart < 0)
+                    {
+                        neighbor.DistanceFromStart = current.DistanceFromStart + 1;
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+
+            // Farthest room becomes the end; ties go to the lowest ID for reproducibility.
+            RoomData end = start;
+            foreach (RoomData room in rooms)
+            {
+                if (room.DistanceFromStart > end.DistanceFromStart)
+                    end = room;
+            }
+
+            if (end != start)
+                end.Role = RoomRole.End;
         }
 
         public RoomData GetRoom(int roomID)
@@ -117,10 +188,22 @@ namespace HRCG.Runtime
             return best;
         }
 
+        // Center of the door opening at floor level.
+        public Vector3 GetDoorCenterLocal(DoorData door)
+        {
+            return GetCellLocalPosition(door.CellA) + HexMath.GetEdgeCenter(door.EdgeA, hexSize);
+        }
+
+        // Horizontal direction through the door, pointing from RoomA into RoomB.
+        public Vector3 GetDoorForwardLocal(DoorData door)
+        {
+            return HexMath.GetEdgeNormal(door.EdgeA);
+        }
+
         // Endpoints of the door opening at floor level.
         public (Vector3, Vector3) GetDoorOpeningLocal(DoorData door)
         {
-            Vector3 center = GetCellLocalPosition(door.CellA) + HexMath.GetEdgeCenter(door.EdgeA, hexSize);
+            Vector3 center = GetDoorCenterLocal(door);
             (Vector3 start, Vector3 end) = HexMath.GetEdgeVertices(door.EdgeA, hexSize);
             Vector3 halfWidth = (end - start).normalized * (HexMath.CalculateDoorWidth(hexSize, doorWidthRatio) / 2f);
 

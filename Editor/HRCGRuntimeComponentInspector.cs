@@ -77,6 +77,8 @@ namespace HRCG.Editor
                 {
                     EditorGUILayout.HelpBox($"Invalid parameters: {errorMessage}", MessageType.Error);
                 }
+
+                HRCGEditorGUI.NavMeshWarnings(component.parameters);
             }
         }
     }

@@ -17,6 +17,8 @@ namespace HRCG.Editor
         private const float GoldenRatioConjugate = 0.618034f;
 
         private static readonly Color DoorColor = new Color(1f, 0.85f, 0.1f);
+        private static readonly Color StartColor = new Color(0.2f, 1f, 0.35f);
+        private static readonly Color EndColor = new Color(1f, 0.3f, 0.3f);
         private static GUIStyle labelStyle;
 
         [DrawGizmo(GizmoType.Selected | GizmoType.NonSelected)]
@@ -37,6 +39,9 @@ namespace HRCG.Editor
 
             if (data.showDoors)
                 DrawDoors(data);
+
+            if (data.showRoomRoles)
+                DrawRoomRoles(data);
 
             if (data.showRoomLabels)
                 DrawRoomLabels(data);
@@ -125,7 +130,41 @@ namespace HRCG.Editor
                 string doorsLabel = room.ConnectedRoomIDs.Count == 1 ? "door" : "doors";
                 string text = $"<color=#{color}>Room {room.RoomID}</color>\n{room.Cells.Count} hex · {room.ConnectedRoomIDs.Count} {doorsLabel}";
 
+                if (data.showRoomRoles)
+                    text += GetRoleLine(room);
+
                 Handles.Label(anchors[room.RoomID], text, labelStyle);
+            }
+        }
+
+        // Rings around the start (green) and end (red) rooms' anchor cells.
+        private static void DrawRoomRoles(HRCGLevelData data)
+        {
+            float radius = HexMath.GetInnerRadius(data.HexSize) * 0.6f;
+            Vector3 lift = Vector3.up * OutlineLift;
+
+            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            {
+                if (room.Role == HRCGLevelData.RoomRole.Normal)
+                    continue;
+
+                Handles.color = room.Role == HRCGLevelData.RoomRole.Start ? StartColor : EndColor;
+                Vector3 center = data.GetRoomAnchorLocalPosition(room) + lift;
+                Handles.DrawWireDisc(center, Vector3.up, radius, DoorMarkerWidth);
+                Handles.DrawWireDisc(center, Vector3.up, radius * 0.8f, OutlineWidth);
+            }
+        }
+
+        private static string GetRoleLine(HRCGLevelData.RoomData room)
+        {
+            switch (room.Role)
+            {
+                case HRCGLevelData.RoomRole.Start:
+                    return $"\n<color=#{ColorUtility.ToHtmlStringRGB(StartColor)}>START</color>";
+                case HRCGLevelData.RoomRole.End:
+                    return $"\n<color=#{ColorUtility.ToHtmlStringRGB(EndColor)}>END</color> · {room.DistanceFromStart} doors from start";
+                default:
+                    return $"\n{room.DistanceFromStart} doors from start{(room.IsDeadEnd ? " · dead end" : "")}";
             }
         }
 

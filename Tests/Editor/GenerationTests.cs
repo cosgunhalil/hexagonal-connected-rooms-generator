@@ -21,10 +21,15 @@ namespace HRCG.Tests
             yield return Case("MaxConnections2", 1, 5, 30, maxConnections: 2);
             yield return Case("MaxConnections2NoReserve", 1, 5, 30, maxConnections: 2, reserve: false);
             yield return Case("MinConnections3", 2, 4, 30, minConnections: 3);
+            yield return Case("Sprawling", 1, 5, 30, layoutBias: 1f);
+            yield return Case("Clustered", 1, 5, 30, layoutBias: -1f);
+            yield return Case("TreeNoLoops", 1, 5, 30, loopChance: 0f);
+            yield return Case("SprawlingTreeMaxConnections3", 2, 6, 30, maxConnections: 3, layoutBias: 0.7f, loopChance: 0.2f);
         }
 
         private static TestCaseData Case(string name, int minHex, int maxHex, int rooms,
-            int minConnections = 1, int maxConnections = 6, bool reserve = true)
+            int minConnections = 1, int maxConnections = 6, bool reserve = true,
+            float layoutBias = 0f, float loopChance = 1f)
         {
             GenerationParameters parameters = new GenerationParameters
             {
@@ -33,7 +38,9 @@ namespace HRCG.Tests
                 TargetRoomCount = rooms,
                 MinConnectionsPerRoom = minConnections,
                 MaxConnectionsPerRoom = maxConnections,
-                ReserveConnectionForGrowth = reserve
+                ReserveConnectionForGrowth = reserve,
+                LayoutBias = layoutBias,
+                LoopChance = loopChance
             };
             return new TestCaseData(parameters).SetName($"Generation_Invariants_{name}");
         }

@@ -73,8 +73,10 @@ namespace HRCG.Generation
         }
 
         // Connects the room to up to maxNewConnections adjacent rooms (bounded by the max-connection
-        // limit), visiting neighbors in random order. Returns the number of new connections.
-        public int ConnectToNeighbors(HexGrid grid, Room room, System.Random random, int maxNewConnections = int.MaxValue)
+        // limit), visiting neighbors in random order. After the first new door, each further door is
+        // made with probability extraConnectionChance. Returns the number of new connections.
+        public int ConnectToNeighbors(HexGrid grid, Room room, System.Random random,
+            int maxNewConnections = int.MaxValue, float extraConnectionChance = 1f)
         {
             Dictionary<int, List<EdgeConnection>> sharedEdges = FindSharedEdges(grid, room.Cells, room.RoomID);
 
@@ -91,6 +93,10 @@ namespace HRCG.Generation
 
                 Room neighborRoom = grid.GetRoom(neighborID);
                 if (neighborRoom == null || room.IsConnectedTo(neighborID) || !HasCapacity(neighborRoom))
+                    continue;
+
+                // Only draw a random number when the chance matters, so default settings keep existing seeds stable.
+                if (created > 0 && extraConnectionChance < 1f && random.NextDouble() >= extraConnectionChance)
                     continue;
 
                 List<EdgeConnection> edges = sharedEdges[neighborID];

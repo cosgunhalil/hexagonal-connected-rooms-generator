@@ -2,7 +2,8 @@
     "name": "hcrg.runtime",
     "rootNamespace": "",
     "references": [
-        "Unity.ProBuilder"
+        "Unity.ProBuilder",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -11,6 +12,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ai.navigation",
+            "expression": "1.0.0",
+            "define": "HRCG_AI_NAVIGATION"
+        }
+    ],
     "noEngineReferences": false
 }

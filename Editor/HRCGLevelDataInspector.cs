@@ -24,6 +24,11 @@ namespace HRCG.Editor
             EditorGUILayout.LabelField("Doors", data.Doors.Count.ToString());
             EditorGUILayout.LabelField("Hex Size", data.HexSize.ToString("F2"));
 
+            HRCGLevelData.RoomData startRoom = data.StartRoom;
+            HRCGLevelData.RoomData endRoom = data.EndRoom;
+            EditorGUILayout.LabelField("Start Room", startRoom != null ? $"Room {startRoom.RoomID}" : "-");
+            EditorGUILayout.LabelField("End Room", endRoom != null ? $"Room {endRoom.RoomID} ({endRoom.DistanceFromStart} doors from start)" : "-");
+
             if (data.Rooms.Count > 0 && GUILayout.Button("Frame Level In Scene View"))
             {
                 Renderer[] renderers = data.GetComponentsInChildren<Renderer>();

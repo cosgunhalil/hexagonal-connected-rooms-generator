@@ -4,7 +4,8 @@
     "references": [
         "Unity.ProBuilder",
         "Unity.ProBuilder.Editor",
-        "hcrg.runtime"
+        "hcrg.runtime",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [
         "Editor"
@@ -15,6 +16,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ai.navigation",
+            "expression": "1.0.0",
+            "define": "HRCG_AI_NAVIGATION"
+        }
+    ],
     "noEngineReferences": false
 }

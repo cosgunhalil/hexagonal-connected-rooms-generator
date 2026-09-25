@@ -42,7 +42,7 @@ namespace HRCG.Tests
             GameObject level = Track(CreateGenerator().GenerateLevel());
 
             Assert.That(level.GetComponent<ProBuilderMesh>(), Is.Not.Null);
-            Assert.That(level.transform.childCount, Is.Zero);
+            Assert.That(level.GetComponentsInChildren<ProBuilderMesh>().Length, Is.EqualTo(1));
             Assert.That(level.GetComponentsInChildren<MeshFilter>().Length, Is.EqualTo(1));
         }
 
@@ -114,7 +114,7 @@ namespace HRCG.Tests
             foreach (ProBuilderMesh roomMesh in byRoom.GetComponentsInChildren<ProBuilderMesh>())
                 faces += roomMesh.faceCount;
 
-            Assert.That(byRoom.transform.childCount, Is.EqualTo(grid.RoomCount));
+            Assert.That(byRoom.GetComponentsInChildren<ProBuilderMesh>().Length, Is.EqualTo(grid.RoomCount));
             Assert.That(faces, Is.EqualTo(single.faceCount));
         }
 

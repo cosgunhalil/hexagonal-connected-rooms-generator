@@ -11,6 +11,7 @@ namespace HRCG.Editor
         private GenerationParameters parameters;
         private Material floorMaterial;
         private Material wallMaterial;
+        private GameObject doorPrefab;
         private GameObject lastGeneratedLevel;
         
         private Vector2 scrollPosition;
@@ -49,7 +50,16 @@ namespace HRCG.Editor
             DrawConnectionSettings();
             EditorGUILayout.Space(10);
 
+            DrawLayoutSettings();
+            EditorGUILayout.Space(10);
+
             DrawMaterialSettings();
+            EditorGUILayout.Space(10);
+
+            DrawPhysicsAndNavigationSettings();
+            EditorGUILayout.Space(10);
+
+            DrawDoorsAndSpawnsSettings();
             EditorGUILayout.Space(10);
 
             DrawAdvancedSettings();
@@ -140,6 +150,67 @@ namespace HRCG.Editor
             parameters.ReserveConnectionForGrowth = EditorGUILayout.Toggle(
                 new GUIContent("Reserve Slot For Growth", "New rooms leave one connection slot free so later rooms can attach. Larger levels at low Max Connections, fewer loops"),
                 parameters.ReserveConnectionForGrowth);
+        }
+
+        private void DrawLayoutSettings()
+        {
+            EditorGUILayout.LabelField("Layout", EditorStyles.boldLabel);
+
+            parameters.LayoutBias = EditorGUILayout.Slider(
+                new GUIContent("Layout Bias", "-1 = compact and clustered, 0 = uniform random, 1 = long sprawling branches"),
+                parameters.LayoutBias, -1f, 1f);
+
+            parameters.LoopChance = EditorGUILayout.Slider(
+                new GUIContent("Loop Chance", "Chance of each extra door after a new room's first one. 0 = tree (no loops), 1 = connect whenever limits allow"),
+                parameters.LoopChance, 0f, 1f);
+        }
+
+        private void DrawPhysicsAndNavigationSettings()
+        {
+            EditorGUILayout.LabelField("Physics & Navigation", EditorStyles.boldLabel);
+
+            parameters.AddMeshCollider = EditorGUILayout.Toggle(
+                new GUIContent("Add Mesh Collider", "Add a MeshCollider to the generated level"),
+                parameters.AddMeshCollider);
+
+            parameters.BakeNavMesh = EditorGUILayout.Toggle(
+                new GUIContent("Bake NavMesh", "Bake a NavMesh after generation (AI Navigation package). Editor bakes are saved as assets next to the scene"),
+                parameters.BakeNavMesh);
+
+            using (new EditorGUI.DisabledScope(!parameters.BakeNavMesh))
+            {
+                EditorGUI.indentLevel++;
+
+                parameters.NavMeshAgentTypeID = HRCGEditorGUI.AgentTypePopup(
+                    new GUIContent("Agent Type", "Agent type from Navigation settings"),
+                    parameters.NavMeshAgentTypeID);
+
+                parameters.NavMeshGeometry = (NavMeshGeometrySource)EditorGUILayout.EnumPopup(
+                    new GUIContent("Collect Geometry", "Bake from render meshes or physics colliders"),
+                    parameters.NavMeshGeometry);
+
+                EditorGUI.indentLevel--;
+            }
+
+            if (parameters.BakeNavMesh && parameters.NavMeshGeometry == NavMeshGeometrySource.PhysicsColliders && !parameters.AddMeshCollider)
+            {
+                EditorGUILayout.HelpBox("Baking from colliders requires Add Mesh Collider.", MessageType.Error);
+            }
+
+            HRCGEditorGUI.NavMeshWarnings(parameters);
+        }
+
+        private void DrawDoorsAndSpawnsSettings()
+        {
+            EditorGUILayout.LabelField("Doors & Spawns", EditorStyles.boldLabel);
+
+            doorPrefab = (GameObject)EditorGUILayout.ObjectField(
+                new GUIContent("Door Prefab", "Optional prefab placed in every doorway. +Z points through the door, X runs along the opening"),
+                doorPrefab, typeof(GameObject), false);
+
+            parameters.CreateSpawnPoints = EditorGUILayout.Toggle(
+                new GUIContent("Create Spawn Points", "Add an empty spawn point Transform inside every room"),
+                parameters.CreateSpawnPoints);
         }
 
         private void DrawMaterialSettings()
@@ -308,6 +379,7 @@ namespace HRCG.Editor
 
             LevelGeometryGenerator geometryGenerator = LevelGeometryGenerator.FromParameters(grid, parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial);
+            geometryGenerator.SetDoorPrefab(doorPrefab);
 
             lastGeneratedLevel = buildGeometry(geometryGenerator);
 

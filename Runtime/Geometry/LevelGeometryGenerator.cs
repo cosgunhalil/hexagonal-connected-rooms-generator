@@ -14,6 +14,10 @@ namespace HRCG.Geometry
         private readonly float doorWidthRatio;
         private Material floorMaterial;
         private Material wallMaterial;
+        private GameObject doorPrefab;
+
+        // Post-processing options (colliders, NavMesh, spawn points). Null means geometry only.
+        private GenerationParameters options;
 
         public LevelGeometryGenerator(HexGrid grid, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f)
         {
@@ -25,7 +29,10 @@ namespace HRCG.Geometry
 
         public static LevelGeometryGenerator FromParameters(HexGrid grid, GenerationParameters parameters)
         {
-            return new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight, parameters.DoorWidthRatio);
+            return new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight, parameters.DoorWidthRatio)
+            {
+                options = parameters
+            };
         }
 
         public void SetMaterials(Material floor, Material wall)
@@ -34,9 +41,16 @@ namespace HRCG.Geometry
             wallMaterial = wall;
         }
 
+        // Optional prefab placed in every doorway. Its +Z axis points through the door (from RoomA into RoomB)
+        // and its X axis runs along the opening.
+        public void SetDoorPrefab(GameObject prefab)
+        {
+            doorPrefab = prefab;
+        }
+
         public GameObject GenerateLevel()
         {
-            return AttachLevelData(BuildMesh("Generated Level", GetRoomCells(), includeFloors: true, includeWalls: true));
+            return FinishLevel(BuildMesh("Generated Level", GetRoomCells(), includeFloors: true, includeWalls: true));
         }
 
         public GameObject GenerateLevelSeparateByRoom()
@@ -62,37 +76,116 @@ namespace HRCG.Geometry
                 }
             }
 
-            return AttachLevelData(levelRoot);
+            return FinishLevel(levelRoot);
         }
 
         public GameObject GenerateFloorOnly()
         {
-            return AttachLevelData(BuildMesh("Generated Level (Floor Only)", GetRoomCells(), includeFloors: true, includeWalls: false));
+            return FinishLevel(BuildMesh("Generated Level (Floor Only)", GetRoomCells(), includeFloors: true, includeWalls: false));
         }
 
         public GameObject GenerateWallsOnly()
         {
-            return AttachLevelData(BuildMesh("Generated Level (Walls Only)", GetRoomCells(), includeFloors: false, includeWalls: true));
+            return FinishLevel(BuildMesh("Generated Level (Walls Only)", GetRoomCells(), includeFloors: false, includeWalls: true));
         }
 
-        public static GameObject GenerateComplete(GenerationParameters parameters, Material floorMaterial = null, Material wallMaterial = null)
+        public static GameObject GenerateComplete(GenerationParameters parameters, Material floorMaterial = null, Material wallMaterial = null, GameObject doorPrefab = null)
         {
             HRCGGenerator generator = new HRCGGenerator();
             HexGrid grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geometryGenerator = FromParameters(grid, parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial);
+            geometryGenerator.SetDoorPrefab(doorPrefab);
 
             return geometryGenerator.GenerateLevel();
         }
 
-        private GameObject AttachLevelData(GameObject level)
+        // Order matters: the NavMesh is baked before door prefabs are placed so closed doors cannot block it.
+        private GameObject FinishLevel(GameObject level)
         {
-            if (level != null)
+            if (level == null)
+                return null;
+
+            HRCGLevelData data = level.AddComponent<HRCGLevelData>();
+            data.Initialize(grid, wallHeight, doorHeight, doorWidthRatio);
+
+            if (options != null)
             {
-                level.AddComponent<HRCGLevelData>().Initialize(grid, wallHeight, doorHeight, doorWidthRatio);
+                if (options.AddMeshCollider)
+                    AddMeshColliders(level);
+
+                if (options.BakeNavMesh)
+                {
+                    if (!LevelNavMeshBaker.DoorsFitAgent(options, out string message))
+                        Debug.LogWarning(message);
+
+                    LevelNavMeshBaker.Bake(level, options.NavMeshAgentTypeID, options.NavMeshGeometry);
+                }
+
+                if (options.CreateSpawnPoints)
+                    CreateSpawnPoints(level, data);
             }
+
+            if (doorPrefab != null)
+                PlaceDoors(level, data);
+
             return level;
+        }
+
+        private static void AddMeshColliders(GameObject level)
+        {
+            foreach (MeshFilter meshFilter in level.GetComponentsInChildren<MeshFilter>())
+            {
+                MeshCollider meshCollider = meshFilter.GetComponent<MeshCollider>();
+                if (meshCollider == null)
+                    meshCollider = meshFilter.gameObject.AddComponent<MeshCollider>();
+
+                meshCollider.sharedMesh = meshFilter.sharedMesh;
+            }
+        }
+
+        private static void CreateSpawnPoints(GameObject level, HRCGLevelData data)
+        {
+            Transform parent = CreateChild(level.transform, "Spawn Points");
+
+            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            {
+                Transform spawnPoint = CreateChild(parent, $"Spawn_Room_{room.RoomID}");
+                spawnPoint.localPosition = data.GetRoomAnchorLocalPosition(room);
+                room.SpawnPoint = spawnPoint;
+            }
+        }
+
+        private void PlaceDoors(GameObject level, HRCGLevelData data)
+        {
+            Transform parent = CreateChild(level.transform, "Doors");
+
+            foreach (HRCGLevelData.DoorData door in data.Doors)
+            {
+                GameObject instance = InstantiateDoor(parent);
+                instance.name = $"Door_{door.RoomA}_{door.RoomB}";
+                instance.transform.localPosition = data.GetDoorCenterLocal(door);
+                instance.transform.localRotation = Quaternion.LookRotation(data.GetDoorForwardLocal(door), Vector3.up);
+                door.DoorObject = instance.transform;
+            }
+        }
+
+        private GameObject InstantiateDoor(Transform parent)
+        {
+#if UNITY_EDITOR
+            // Keep the prefab link when generating in the Editor.
+            if (!Application.isPlaying && UnityEditor.PrefabUtility.IsPartOfPrefabAsset(doorPrefab))
+                return (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(doorPrefab, parent);
+#endif
+            return Object.Instantiate(doorPrefab, parent);
+        }
+
+        private static Transform CreateChild(Transform parent, string name)
+        {
+            Transform child = new GameObject(name).transform;
+            child.SetParent(parent, false);
+            return child;
         }
 
         private List<HexCell> GetRoomCells()
