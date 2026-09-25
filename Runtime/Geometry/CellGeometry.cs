@@ -41,6 +41,26 @@ namespace CRG.Geometry
         public Vector3 EndChamferPoint;
     }
 
+    // Wall layout around cells, provided by the level builder for thick walls.
+    public interface IWallLayout
+    {
+        // How far the wall on this cell's side of the edge reaches into the cell (0 = no wall on that edge).
+        float GetDepth(CellCoord cell, int edge);
+
+        // For an open edge (no wall), the depth of the wall that wraps around one of its corners through cells
+        // of the same room, or 0 when no wall touches that corner. atEndCorner selects the edge's end corner.
+        float GetWrapDepth(CellCoord cell, int edge, bool atEndCorner);
+    }
+
+    // Triangle a cell adds at a corner where a wall wraps around it without the cell having a wall there.
+    public struct CornerFill
+    {
+        public Vector3 CellCenter;
+        public Vector3 Corner;
+        public Vector3 PointOnEndingEdge;
+        public Vector3 PointOnStartingEdge;
+    }
+
     // Floor, wall and thick-wall footprints for any grid topology, in the level's local space.
     public static class CellGeometry
     {
@@ -122,18 +142,16 @@ namespace CRG.Geometry
             return segments;
         }
 
-        // wallDepths[i] is how far the wall on edge i reaches into this cell (0 = no wall on that edge).
-        //
         // At a corner where the neighboring edge of the same cell also has a wall, the two inner lines meet at
         // their intersection. Where it is open, the strip is cut on the corner's bisector (the line towards the
-        // center of a regular cell) at depth / sin(a/2), and a chamfer runs to the point depth / tan(a/2) along
-        // the open edge, a being the cell's interior angle at that corner.
+        // center of a regular cell) at depth / sin(a/2), a being the cell's interior angle at that corner, and a
+        // chamfer runs to the wrap point on the open edge (see GetWrapPoint).
         public static ThickWallStrip GetThickWallStrip(
             IGridTopology topology,
             CellCoord coordinate,
             int edgeIndex,
             float cellSize,
-            float[] wallDepths,
+            IWallLayout layout,
             float floorHeight = 0f)
         {
             Vector3 center = topology.GetCellCenter(coordinate, cellSize);
@@ -142,7 +160,9 @@ namespace CRG.Geometry
             int edgeCount = topology.GetEdgeCount(coordinate);
             int nextEdge = (edgeIndex + 1) % edgeCount;
             int previousEdge = (edgeIndex + edgeCount - 1) % edgeCount;
-            float depth = wallDepths[edgeIndex];
+            float depth = layout.GetDepth(coordinate, edgeIndex);
+            float nextDepth = layout.GetDepth(coordinate, nextEdge);
+            float previousDepth = layout.GetDepth(coordinate, previousEdge);
 
             (Vector3 edgeStart, Vector3 edgeEnd) = GetEdgeWorldVertices(topology, coordinate, edgeIndex, cellSize, floorHeight);
 
@@ -155,35 +175,116 @@ namespace CRG.Geometry
                 Depth = depth
             };
 
-            // End corner, shared with the next edge of this cell.
-            if (wallDepths[nextEdge] > 0f)
+            // End corner (corner edgeIndex), shared with the next edge of this cell.
+            if (nextDepth > 0f)
             {
-                strip.InnerEnd = IntersectInsetLines(topology, coordinate, edgeStart, edgeIndex, depth, edgeEnd, nextEdge, wallDepths[nextEdge]);
+                strip.InnerEnd = IntersectInsetLines(topology, coordinate, edgeStart, edgeIndex, depth, edgeEnd, nextEdge, nextDepth);
             }
             else
             {
-                (_, Vector3 nextEdgeEnd) = GetEdgeWorldVertices(topology, coordinate, nextEdge, cellSize, floorHeight);
-                float halfAngle = HalfInteriorAngle(edgeStart, edgeEnd, nextEdgeEnd);
+                float halfAngle = CornerHalfAngle(topology, coordinate, edgeIndex, cellSize);
                 strip.InnerEnd = edgeEnd + (center - edgeEnd).normalized * (depth / Mathf.Sin(halfAngle));
                 strip.HasEndChamfer = true;
-                strip.EndChamferPoint = edgeEnd + (nextEdgeEnd - edgeEnd).normalized * (depth / Mathf.Tan(halfAngle));
+                strip.EndChamferPoint = GetWrapPoint(topology, coordinate, nextEdge, false, cellSize, layout, floorHeight);
             }
 
-            // Start corner, shared with the previous edge of this cell.
-            if (wallDepths[previousEdge] > 0f)
+            // Start corner (corner previousEdge), shared with the previous edge of this cell.
+            if (previousDepth > 0f)
             {
-                strip.InnerStart = IntersectInsetLines(topology, coordinate, edgeStart, edgeIndex, depth, edgeStart, previousEdge, wallDepths[previousEdge]);
+                strip.InnerStart = IntersectInsetLines(topology, coordinate, edgeStart, edgeIndex, depth, edgeStart, previousEdge, previousDepth);
             }
             else
             {
-                (Vector3 previousEdgeStart, _) = GetEdgeWorldVertices(topology, coordinate, previousEdge, cellSize, floorHeight);
-                float halfAngle = HalfInteriorAngle(edgeEnd, edgeStart, previousEdgeStart);
+                float halfAngle = CornerHalfAngle(topology, coordinate, previousEdge, cellSize);
                 strip.InnerStart = edgeStart + (center - edgeStart).normalized * (depth / Mathf.Sin(halfAngle));
                 strip.HasStartChamfer = true;
-                strip.StartChamferPoint = edgeStart + (previousEdgeStart - edgeStart).normalized * (depth / Mathf.Tan(halfAngle));
+                strip.StartChamferPoint = GetWrapPoint(topology, coordinate, previousEdge, true, cellSize, layout, floorHeight);
             }
 
             return strip;
+        }
+
+        // A corner of a cell that has no wall of its own there, although a wall wraps around the corner through
+        // cells of the same room (four cells meet at a square corner, six at a triangle corner). The cell then
+        // fills the triangle between the corner and the wrap points on its two edges, closing the wall.
+        public static bool TryGetCornerFill(
+            IGridTopology topology,
+            CellCoord coordinate,
+            int corner,
+            float cellSize,
+            IWallLayout layout,
+            out CornerFill fill,
+            float floorHeight = 0f)
+        {
+            fill = default;
+
+            int edgeCount = topology.GetEdgeCount(coordinate);
+            int endingEdge = corner;
+            int startingEdge = (corner + 1) % edgeCount;
+
+            if (layout.GetDepth(coordinate, endingEdge) > 0f || layout.GetDepth(coordinate, startingEdge) > 0f)
+                return false;
+
+            if (layout.GetWrapDepth(coordinate, endingEdge, true) <= 0f || layout.GetWrapDepth(coordinate, startingEdge, false) <= 0f)
+                return false;
+
+            Vector3 center = topology.GetCellCenter(coordinate, cellSize);
+            center.y = floorHeight;
+
+            fill = new CornerFill
+            {
+                CellCenter = center,
+                Corner = center + topology.GetCornerOffset(coordinate, corner, cellSize),
+                PointOnEndingEdge = GetWrapPoint(topology, coordinate, endingEdge, true, cellSize, layout, floorHeight),
+                PointOnStartingEdge = GetWrapPoint(topology, coordinate, startingEdge, false, cellSize, layout, floorHeight)
+            };
+            return true;
+        }
+
+        // Where the inner face of a wall wrapping around a corner crosses an open edge touching that corner:
+        // wrapDepth / tan(a/2) from the corner, a being the smaller interior angle of the two cells sharing the
+        // edge there. Both cells compute the same point, so their wall pieces meet exactly. atEndCorner selects
+        // the edge's end corner (corner edge) instead of its start corner (corner edge - 1).
+        public static Vector3 GetWrapPoint(
+            IGridTopology topology,
+            CellCoord coordinate,
+            int openEdge,
+            bool atEndCorner,
+            float cellSize,
+            IWallLayout layout,
+            float floorHeight = 0f)
+        {
+            int edgeCount = topology.GetEdgeCount(coordinate);
+            int corner = atEndCorner ? openEdge : (openEdge + edgeCount - 1) % edgeCount;
+            int otherCorner = atEndCorner ? (openEdge + edgeCount - 1) % edgeCount : openEdge;
+
+            CellCoord neighbor = topology.GetNeighbor(coordinate, openEdge);
+            int neighborEdge = topology.GetNeighborEdge(coordinate, openEdge);
+            int neighborEdgeCount = topology.GetEdgeCount(neighbor);
+            // The shared edge runs the other way in the neighbor, so this end corner is its start corner and vice versa.
+            int neighborCorner = atEndCorner ? (neighborEdge + neighborEdgeCount - 1) % neighborEdgeCount : neighborEdge;
+
+            float halfAngle = Mathf.Min(
+                CornerHalfAngle(topology, coordinate, corner, cellSize),
+                CornerHalfAngle(topology, neighbor, neighborCorner, cellSize));
+
+            Vector3 center = topology.GetCellCenter(coordinate, cellSize);
+            center.y = floorHeight;
+            Vector3 cornerPosition = center + topology.GetCornerOffset(coordinate, corner, cellSize);
+            Vector3 otherCornerPosition = center + topology.GetCornerOffset(coordinate, otherCorner, cellSize);
+
+            float wrapDepth = layout.GetWrapDepth(coordinate, openEdge, atEndCorner);
+            return cornerPosition + (otherCornerPosition - cornerPosition).normalized * (wrapDepth / Mathf.Tan(halfAngle));
+        }
+
+        // Half of the cell's interior angle at the given corner.
+        public static float CornerHalfAngle(IGridTopology topology, CellCoord coordinate, int corner, float cellSize)
+        {
+            int count = topology.GetEdgeCount(coordinate);
+            Vector3 previous = topology.GetCornerOffset(coordinate, (corner + count - 1) % count, cellSize);
+            Vector3 current = topology.GetCornerOffset(coordinate, corner, cellSize);
+            Vector3 next = topology.GetCornerOffset(coordinate, (corner + 1) % count, cellSize);
+            return HalfInteriorAngle(previous, current, next);
         }
 
         public static (Vector3, Vector3) GetEdgeWorldVertices(IGridTopology topology, CellCoord coordinate, int edgeIndex, float cellSize, float floorHeight = 0f)

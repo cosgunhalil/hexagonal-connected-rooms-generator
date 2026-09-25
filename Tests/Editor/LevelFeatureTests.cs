@@ -11,8 +11,17 @@ using CRG.Runtime;
 namespace CRG.Tests
 {
     // Post-generation features: colliders, spawn points, door prefabs, room roles, layout control and NavMesh.
+    [TestFixture(GridType.Hexagon)]
+    [TestFixture(GridType.Square)]
     public class LevelFeatureTests
     {
+        private readonly GridType gridType;
+
+        public LevelFeatureTests(GridType gridType)
+        {
+            this.gridType = gridType;
+        }
+
         private const int Seeds = 30;
 
         private readonly List<Object> created = new List<Object>();
@@ -22,6 +31,7 @@ namespace CRG.Tests
         public void SetUp()
         {
             parameters = GenerationParameters.CreateDefault();
+            parameters.GridType = gridType;
             parameters.RandomSeed = 42;
             parameters.TargetRoomCount = 20;
         }

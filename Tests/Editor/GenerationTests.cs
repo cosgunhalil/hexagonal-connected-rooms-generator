@@ -25,11 +25,16 @@ namespace CRG.Tests
             yield return Case("Clustered", 1, 5, 30, layoutBias: -1f);
             yield return Case("TreeNoLoops", 1, 5, 30, loopChance: 0f);
             yield return Case("SprawlingTreeMaxConnections3", 2, 6, 30, maxConnections: 3, layoutBias: 0.7f, loopChance: 0.2f);
+            yield return Case("SquareDefault", 1, 5, 10, gridType: GridType.Square);
+            yield return Case("SquareLarge", 3, 7, 20, gridType: GridType.Square);
+            yield return Case("SquareHuge", 1, 10, 100, gridType: GridType.Square);
+            yield return Case("SquareMaxConnections2", 1, 5, 30, maxConnections: 2, gridType: GridType.Square);
+            yield return Case("SquareTreeSprawling", 1, 5, 30, layoutBias: 1f, loopChance: 0f, gridType: GridType.Square);
         }
 
         private static TestCaseData Case(string name, int minHex, int maxHex, int rooms,
             int minConnections = 1, int maxConnections = 6, bool reserve = true,
-            float layoutBias = 0f, float loopChance = 1f)
+            float layoutBias = 0f, float loopChance = 1f, GridType gridType = GridType.Hexagon)
         {
             GenerationParameters parameters = new GenerationParameters
             {
@@ -40,7 +45,8 @@ namespace CRG.Tests
                 MaxConnectionsPerRoom = maxConnections,
                 ReserveConnectionForGrowth = reserve,
                 LayoutBias = layoutBias,
-                LoopChance = loopChance
+                LoopChance = loopChance,
+                GridType = gridType
             };
             return new TestCaseData(parameters).SetName($"Generation_Invariants_{name}");
         }

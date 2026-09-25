@@ -148,6 +148,17 @@ namespace CRG.Geometry
             }
         }
 
+        // Closes a wall that wraps around a corner through a cell without walls of its own there.
+        public void AddCornerFill(CornerFill fill, Material material)
+        {
+            float top = floorHeight + wallHeight;
+            AddVerticalQuad(fill.PointOnEndingEdge, fill.PointOnStartingEdge, floorHeight, top, fill.CellCenter, material);
+            AddPolygon(new List<Vector3>
+            {
+                WithHeight(fill.Corner, top), WithHeight(fill.PointOnEndingEdge, top), WithHeight(fill.PointOnStartingEdge, top)
+            }, Vector3.up, material);
+        }
+
         public GameObject Build(string name)
         {
             ProBuilderMesh mesh = ProBuilderMesh.Create(positions, faces);
@@ -207,6 +218,10 @@ namespace CRG.Geometry
         // Convex polygon, triangulated as a fan and wound so that it faces desiredNormal.
         private void AddPolygon(List<Vector3> points, Vector3 desiredNormal, Material material)
         {
+            RemoveRedundantPoints(points);
+            if (points.Count < 3)
+                return;
+
             Vector3 normal = Vector3.zero;
             for (int i = 0; i < points.Count; i++)
             {
@@ -233,6 +248,35 @@ namespace CRG.Geometry
             }
 
             AddFace(indices, material);
+        }
+
+        // Drops repeated points and points lying on the line between their neighbors (for example where a wall
+        // continues straight past a square corner), so fan triangulation never emits zero-area triangles.
+        private static void RemoveRedundantPoints(List<Vector3> points)
+        {
+            bool removed = true;
+            while (removed && points.Count >= 3)
+            {
+                removed = false;
+                for (int i = 0; i < points.Count; i++)
+                {
+                    Vector3 previous = points[(i + points.Count - 1) % points.Count];
+                    Vector3 current = points[i];
+                    Vector3 next = points[(i + 1) % points.Count];
+
+                    Vector3 toCurrent = current - previous;
+                    Vector3 toNext = next - current;
+                    bool duplicate = toCurrent.magnitude < MinSize;
+                    bool collinear = Vector3.Cross(toCurrent, toNext).magnitude < MinSize * Mathf.Max(toCurrent.magnitude, toNext.magnitude);
+
+                    if (duplicate || collinear)
+                    {
+                        points.RemoveAt(i);
+                        removed = true;
+                        break;
+                    }
+                }
+            }
         }
 
         private static Vector3 WithHeight(Vector3 point, float height)

@@ -1,6 +1,6 @@
 # Connected Rooms Generator (CRG)
 
-Procedural level generation for Unity. CRG grows a set of connected rooms on a hexagonal grid, where every room is a cluster of adjacent hexagons, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
+Procedural level generation for Unity. CRG grows a set of connected rooms on a hexagonal or square grid, where every room is a cluster of adjacent cells, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
 
 On top of the geometry it can add colliders, bake a NavMesh, place a door prefab in every doorway, create a spawn point in each room and mark start/end rooms, so a generated level is ready to play.
 
@@ -41,19 +41,19 @@ The generator window also offers **Generate (Separate Rooms)** (one mesh per roo
 
 ## How generation works
 
-1. A seed room is grown at the start position with a random flood fill of N hexagons, where N is between the min and max room size.
+1. A seed room is grown at the start position with a random flood fill of N cells, where N is between the min and max room size.
 2. The *frontier* is every empty cell touching the level. A cell is picked from it (weighted by **Layout Bias**) and a new room is grown from there.
 3. A new room is rejected if it is smaller than the minimum size or if no adjacent room has a free connection slot, so every room stays reachable.
 4. Internal edges of a room are left open. Edges to empty space become walls. For each adjacent room it may connect to (up to the max connection count, subject to **Loop Chance**), one random shared edge becomes a door.
 5. After the target room count is reached, rooms below the minimum connection count get extra doors where neighbors allow.
 
-Hexagons are pointy-top in the XZ plane, and +Z is north.
+Cells lie in the XZ plane with +Z as north: hexagons are pointy-top, squares are axis-aligned, and Cell Size is the edge length of either.
 
 ## Parameters
 
 | Group | Parameter | Default | Description |
 |---|---|---|---|
-| Grid | Grid Type | Hexagon | Shape of the cells rooms are built from. Currently only hexagons; square, triangle and octagon + square grids are planned. |
+| Grid | Grid Type | Hexagon | Shape of the cells rooms are built from: Hexagon or Square. Triangle and octagon + square grids are planned. |
 | | Cell Size | 10 | Edge length of one cell in world units. |
 | Walls | Wall Height | 3 | Height of walls. |
 | | Door Height | 2.5 | Height of door openings (at most Wall Height). |
@@ -63,7 +63,7 @@ Hexagons are pointy-top in the XZ plane, and +Z is north.
 | | Ceiling Chance | 1 | With Add Ceiling, the chance that each room gets a ceiling (1 = every room, 0 = none), for example to mix indoor and open-air rooms. Rooms are picked after the layout is final, so changing it never changes a seed's rooms or doors. |
 | Room size | Min / Max Cells Per Room | 1 / 5 | Room size range, in cells. |
 | Generation | Target Room Count | 10 | Number of rooms to generate. |
-| | Start Position | (0, 0) | Axial coordinate of the first room. |
+| | Start Position | (0, 0) | Cell coordinate of the first room (axial q, r for hexagons; column, row for squares). |
 | Connections | Min / Max Connections Per Room | 1 / 6 | Connection limits per room. Min is best effort: rooms on the edge of the level may have too few neighbors, and a warning is logged. |
 | | Reserve Connection For Growth | On | New rooms keep one connection slot free so later rooms can attach. Matters at low Max Connections, where levels would otherwise stop growing early. |
 | Layout | Layout Bias | 0 | −1 = compact and clustered, 0 = uniform, 1 = long sprawling branches. |
@@ -156,11 +156,11 @@ Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → T
 
 ## Limitations
 
-- With thick walls, outer corners where a room wraps around its neighbor are chamfered rather than rounded.
+- With thick walls, outer corners where a room wraps around a neighboring cell are chamfered rather than rounded.
 - Min Connections Per Room is best effort for rooms at the edge of the level.
 - The level is built around the origin; move the generated GameObject to place it elsewhere.
 
-## Migrating to the grid abstraction (next release)
+## Migrating from 0.2.x (grid abstraction, 0.3.0)
 
 The generator now works on a general cell grid, so hexagon-specific names changed. Serialized data is migrated automatically: parameter assets, generator components and saved levels keep their values, and hex levels are generated exactly as before.
 

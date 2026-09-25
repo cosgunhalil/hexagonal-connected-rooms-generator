@@ -10,8 +10,17 @@ using CRG.Runtime;
 
 namespace CRG.Tests
 {
+    [TestFixture(GridType.Hexagon)]
+    [TestFixture(GridType.Square)]
     public class ThickWallAndCeilingTests
     {
+        private readonly GridType gridType;
+
+        public ThickWallAndCeilingTests(GridType gridType)
+        {
+            this.gridType = gridType;
+        }
+
         private const float Epsilon = 1e-3f;
 
         private readonly List<Object> created = new List<Object>();
@@ -21,6 +30,7 @@ namespace CRG.Tests
         public void SetUp()
         {
             parameters = GenerationParameters.CreateDefault();
+            parameters.GridType = gridType;
             parameters.RandomSeed = 42;
             parameters.TargetRoomCount = 20;
             parameters.WallThickness = 1f;
@@ -46,10 +56,11 @@ namespace CRG.Tests
 
             List<Triangle> tops = GetTriangles(Generate()).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: true)).ToList();
 
-            // All six walls are exterior (full thickness), so the tops fill the ring between the hex and a hex inset by t.
-            float outer = parameters.CellSize;
-            float inner = outer - 2f * parameters.WallThickness / Mathf.Sqrt(3f);
-            float expected = HexArea(outer) - HexArea(inner);
+            // Every wall is exterior (full thickness), so the tops fill the ring between the cell and the same
+            // regular polygon inset by t, whose area scales with the square of the inner radius.
+            float apothem = Topology.GetInnerRadius(new CellCoord(0, 0), parameters.CellSize);
+            float insetScale = (apothem - parameters.WallThickness) / apothem;
+            float expected = CellArea() * (1f - insetScale * insetScale);
 
             Assert.That(tops.Sum(t => t.Area), Is.EqualTo(expected).Within(expected * 1e-3f));
         }
@@ -113,7 +124,7 @@ namespace CRG.Tests
             int cells = level.GetComponent<CRGLevelData>().Rooms.Sum(room => room.Cells.Count);
 
             List<Triangle> ceiling = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).ToList();
-            float expected = cells * HexArea(parameters.CellSize);
+            float expected = cells * CellArea();
 
             Assert.That(ceiling.Sum(t => t.Area), Is.EqualTo(expected).Within(expected * 1e-3f));
         }
@@ -165,7 +176,7 @@ namespace CRG.Tests
                 List<CRGLevelData.RoomData> rooms = level.GetComponent<CRGLevelData>().Rooms.ToList();
 
                 int coveredCells = rooms.Where(room => room.HasCeiling).Sum(room => room.Cells.Count);
-                float expected = coveredCells * HexArea(parameters.CellSize);
+                float expected = coveredCells * CellArea();
                 float actual = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).Sum(t => t.Area);
                 Assert.That(actual, Is.EqualTo(expected).Within(Mathf.Max(expected, 1f) * 1e-3f), $"seed {seed}");
 
@@ -200,6 +211,7 @@ namespace CRG.Tests
         public void NoCeiling_ByDefault()
         {
             parameters = GenerationParameters.CreateDefault();
+            parameters.GridType = gridType;
             parameters.RandomSeed = 42;
 
             Assert.That(GetTriangles(Generate()).Any(t => IsHorizontalAt(t, parameters.WallHeight, up: false)), Is.False);
@@ -257,70 +269,86 @@ namespace CRG.Tests
         }
 #endif
 
-        // Samples points in every room cell at wall-top height: at most one top may cover a point, the band along
-        // each wall (away from corners) must be covered, the corners of walled edges must be covered, and nothing
-        // may reach much farther than the wall thickness.
+        // Samples points in every room cell at wall-top height:
+        // - at most one top may cover a point;
+        // - the band along each of the cell's walls (away from corners) must be covered;
+        // - around every corner of the cell that a wall touches, a small disc must be covered (this is where
+        //   walls wrap around corners, including through cells without walls of their own there);
+        // - nothing may reach much farther than the wall thickness from the nearest wall.
         private void AssertWallTopsCoverWallBands(CellGrid grid, List<Triangle> tops, string context)
         {
+            IGridTopology topology = grid.Topology;
             float t = parameters.WallThickness;
             float size = parameters.CellSize;
+            float cornerInset = topology.ThickWallCornerInsetPerThickness * t;
             float doorWidth = size * parameters.DoorWidthRatio;
             bool doorReachesTop = parameters.DoorHeight >= parameters.WallHeight;
+            WallLayout layout = new WallLayout(grid, t);
             System.Random random = new System.Random(1);
+
+            List<(Vector3 start, Vector3 end)> walls = new List<(Vector3, Vector3)>();
+            foreach (GridCell cell in grid.GetAllCells().Where(c => c.IsPartOfRoom()))
+            {
+                for (int edge = 0; edge < cell.EdgeCount; edge++)
+                {
+                    if (layout.GetDepth(cell.Coordinate, edge) > 0f)
+                        walls.Add(CellGeometry.GetEdgeWorldVertices(topology, cell.Coordinate, edge, size));
+                }
+            }
 
             foreach (GridCell cell in grid.GetAllCells().Where(c => c.IsPartOfRoom()))
             {
-                Vector3 center = grid.GetCellCenter(cell.Coordinate);
-                float innerRadius = grid.Topology.GetInnerRadius(cell.Coordinate, size);
-                List<Triangle> nearby = tops.Where(tri => tri.IsNear(center, size * 1.05f)).ToList();
+                CellCoord coord = cell.Coordinate;
+                Vector3 center = grid.GetCellCenter(coord);
+                float innerRadius = topology.GetInnerRadius(coord, size);
+                List<Triangle> nearbyTops = tops.Where(tri => tri.IsNear(center, size * 1.5f)).ToList();
+                List<(Vector3 start, Vector3 end)> nearbyWalls = walls
+                    .Where(w => FlatDistance(w.start, center) < size * 1.5f || FlatDistance(w.end, center) < size * 1.5f).ToList();
+                List<Vector3> walledCorners = Enumerable.Range(0, cell.EdgeCount)
+                    .Select(k => center + topology.GetCornerOffset(coord, k, size))
+                    .Where(v => nearbyWalls.Any(w => FlatDistance(w.start, v) < 1e-3f || FlatDistance(w.end, v) < 1e-3f))
+                    .ToList();
 
                 for (int sample = 0; sample < 60; sample++)
                 {
                     Vector3 point = center + new Vector3((float)(random.NextDouble() * 2 - 1) * size, 0f, (float)(random.NextDouble() * 2 - 1) * size);
-                    bool inside = Enumerable.Range(0, cell.EdgeCount).All(e => Vector3.Dot(point - center, grid.Topology.GetEdgeNormal(cell.Coordinate, e)) < innerRadius - 0.02f);
+                    bool inside = Enumerable.Range(0, cell.EdgeCount)
+                        .All(e => Vector3.Dot(point - center, topology.GetEdgeNormal(coord, e)) < innerRadius - 0.02f);
                     if (!inside)
                         continue;
 
-                    int coverage = nearby.Count(tri => tri.ContainsXZ(point));
+                    int coverage = nearbyTops.Count(tri => tri.ContainsXZ(point));
                     Assert.That(coverage, Is.LessThanOrEqualTo(1), $"{context}: wall tops overlap at {point}");
 
                     bool mustCover = false;
-                    bool anyWall = false;
-                    float nearestWall = float.MaxValue;
-
                     for (int edge = 0; edge < cell.EdgeCount; edge++)
                     {
-                        WallFlag flag = cell.GetEdgeFlag(edge);
-                        if (!flag.HasFlag(WallFlag.Wall) && !flag.HasFlag(WallFlag.HasDoor))
+                        float depth = layout.GetDepth(coord, edge);
+                        if (depth <= 0f)
                             continue;
 
-                        GridCell neighbor = grid.GetNeighbor(cell.Coordinate, edge);
-                        bool exterior = neighbor == null || !neighbor.IsPartOfRoom();
-                        float depth = exterior ? t : t / 2f;
-                        anyWall = true;
+                        (Vector3 start, Vector3 end) = CellGeometry.GetEdgeWorldVertices(topology, coord, edge, size);
+                        float along = Vector3.Dot(point - start, (end - start).normalized);
+                        float inward = -Vector3.Dot(point - start, topology.GetEdgeNormal(coord, edge));
+                        bool inOpening = doorReachesTop && cell.GetEdgeFlag(edge).HasFlag(WallFlag.HasDoor) &&
+                            !layout.IsExterior(coord, edge) && Mathf.Abs(along - size / 2f) < doorWidth / 2f + 0.05f;
 
-                        (Vector3 start, Vector3 end) = grid.Topology.GetEdgeOffsets(cell.Coordinate, edge, size);
-                        start += center;
-                        end += center;
-                        Vector3 direction = (end - start).normalized;
-                        float along = Vector3.Dot(point - start, direction);
-                        float inward = -Vector3.Dot(point - start, grid.Topology.GetEdgeNormal(cell.Coordinate, edge));
-                        nearestWall = Mathf.Min(nearestWall, DistanceToSegmentXZ(point, start, end));
-
-                        bool inOpening = doorReachesTop && flag.HasFlag(WallFlag.HasDoor) &&
-                            Mathf.Abs(along - size / 2f) < doorWidth / 2f + 0.05f;
-
-                        if (inward > 0.02f && inward < depth - 0.02f && along > t + 0.05f && along < size - t - 0.05f && !inOpening)
-                            mustCover = true;
-
-                        if (FlatDistance(point, start) < 0.5f * depth - 0.02f || FlatDistance(point, end) < 0.5f * depth - 0.02f)
+                        if (inward > 0.02f && inward < depth - 0.02f &&
+                            along > cornerInset + 0.05f && along < size - cornerInset - 0.05f && !inOpening)
                             mustCover = true;
                     }
+
+                    if (walledCorners.Any(v => FlatDistance(point, v) < 0.4f * (t / 2f) - 0.02f))
+                        mustCover = true;
+
+                    float nearestWall = nearbyWalls.Count == 0
+                        ? float.MaxValue
+                        : nearbyWalls.Min(w => DistanceToSegmentXZ(point, w.start, w.end));
 
                     if (mustCover)
                         Assert.That(coverage, Is.EqualTo(1), $"{context}: gap in wall tops at {point}");
 
-                    if (!anyWall || nearestWall > 1.2f * t + 0.05f)
+                    if (nearestWall > 1.2f * t + 0.05f)
                         Assert.That(coverage, Is.Zero, $"{context}: wall top reaches too far at {point}");
                 }
             }
@@ -356,9 +384,21 @@ namespace CRG.Tests
             return builder.ToString();
         }
 
-        private static float HexArea(float circumradius)
+        private IGridTopology Topology => GridTopology.Get(gridType);
+
+        // Area of one cell (all cells of a regular tiling are congruent here).
+        private float CellArea()
         {
-            return 1.5f * Mathf.Sqrt(3f) * circumradius * circumradius;
+            CellCoord cell = new CellCoord(0, 0);
+            int count = Topology.GetEdgeCount(cell);
+            float area = 0f;
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 a = Topology.GetCornerOffset(cell, i, parameters.CellSize);
+                Vector3 b = Topology.GetCornerOffset(cell, (i + 1) % count, parameters.CellSize);
+                area += a.x * b.z - b.x * a.z;
+            }
+            return Mathf.Abs(area) / 2f;
         }
 
         private static float FlatDistance(Vector3 a, Vector3 b)

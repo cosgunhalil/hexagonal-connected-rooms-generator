@@ -278,28 +278,24 @@ namespace CRG.Geometry
         // the full thickness (plus an outer face) towards empty space. Doors are always between rooms.
         private void AddCellThickWalls(ProBuilderMeshBuilder builder, GridCell cell)
         {
-            float[] depths = new float[cell.EdgeCount];
-            bool[] exterior = new bool[cell.EdgeCount];
+            WallLayout layout = new WallLayout(grid, wallThickness);
+            CellCoord coordinate = cell.Coordinate;
 
             for (int edgeIndex = 0; edgeIndex < cell.EdgeCount; edgeIndex++)
             {
-                WallFlag flag = cell.GetEdgeFlag(edgeIndex);
-                if (!flag.HasFlag(WallFlag.Wall) && !flag.HasFlag(WallFlag.HasDoor))
+                if (layout.GetDepth(coordinate, edgeIndex) <= 0f)
                     continue;
 
-                GridCell neighbor = grid.GetNeighbor(cell.Coordinate, edgeIndex);
-                exterior[edgeIndex] = neighbor == null || !neighbor.IsPartOfRoom();
-                depths[edgeIndex] = exterior[edgeIndex] ? wallThickness : wallThickness / 2f;
+                bool exterior = layout.IsExterior(coordinate, edgeIndex);
+                bool hasDoor = cell.GetEdgeFlag(edgeIndex).HasFlag(WallFlag.HasDoor) && !exterior;
+                ThickWallStrip strip = CellGeometry.GetThickWallStrip(grid.Topology, coordinate, edgeIndex, grid.CellSize, layout);
+                builder.AddThickWall(strip, hasDoor, exterior, wallMaterial);
             }
 
-            for (int edgeIndex = 0; edgeIndex < cell.EdgeCount; edgeIndex++)
+            for (int corner = 0; corner < cell.EdgeCount; corner++)
             {
-                if (depths[edgeIndex] <= 0f)
-                    continue;
-
-                ThickWallStrip strip = CellGeometry.GetThickWallStrip(grid.Topology, cell.Coordinate, edgeIndex, grid.CellSize, depths);
-                bool hasDoor = cell.GetEdgeFlag(edgeIndex).HasFlag(WallFlag.HasDoor) && !exterior[edgeIndex];
-                builder.AddThickWall(strip, hasDoor, exterior[edgeIndex], wallMaterial);
+                if (CellGeometry.TryGetCornerFill(grid.Topology, coordinate, corner, grid.CellSize, layout, out CornerFill fill))
+                    builder.AddCornerFill(fill, wallMaterial);
             }
         }
 

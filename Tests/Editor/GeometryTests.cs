@@ -9,8 +9,17 @@ using CRG.Runtime;
 
 namespace CRG.Tests
 {
+    [TestFixture(GridType.Hexagon)]
+    [TestFixture(GridType.Square)]
     public class GeometryTests
     {
+        private readonly GridType gridType;
+
+        public GeometryTests(GridType gridType)
+        {
+            this.gridType = gridType;
+        }
+
         private readonly List<Object> created = new List<Object>();
 
         private GenerationParameters parameters;
@@ -20,6 +29,7 @@ namespace CRG.Tests
         public void SetUp()
         {
             parameters = GenerationParameters.CreateDefault();
+            parameters.GridType = gridType;
             parameters.RandomSeed = 42;
             parameters.TargetRoomCount = 20;
             grid = new CRGGenerator().Generate(parameters);
