@@ -74,6 +74,7 @@ namespace HRCG.Generation
 
             Debug.Log($"Generation complete: {generatedRooms} rooms in {iterations} iterations");
 
+            EnsureMinimumConnections(grid);
             ValidateGeneration(grid);
 
             return grid;
@@ -83,31 +84,14 @@ namespace HRCG.Generation
         {
             Debug.Log($"Creating seed room at {parameters.StartPosition}");
 
-            int roomSize = random.Next(parameters.MinHexagonsPerRoom, parameters.MaxHexagonsPerRoom + 1);
-            int minAcceptableSize = CalculateMinAcceptableSize(roomSize);
-
-            List<AxialCoord> cells = shapeGenerator.GenerateRoomShapeWithRetry(
-                grid,
-                parameters.StartPosition,
-                roomSize,
-                minAcceptableSize,
-                parameters.MaxRetriesPerRoom,
-                random);
-
-            if (cells.Count == 0)
+            List<AxialCoord> cells = GenerateRoomCells(grid, parameters.StartPosition);
+            if (cells == null)
             {
                 Debug.LogError($"Failed to generate seed room at {parameters.StartPosition}");
                 return null;
             }
 
-            Room room = grid.CreateRoom();
-
-            foreach (AxialCoord coord in cells)
-            {
-                grid.AssignCellToRoom(coord, room.RoomID);
-            }
-
-            connectionAnalyzer.AnalyzeAndFlagEdges(grid, room);
+            Room room = PlaceRoom(grid, cells);
 
             Debug.Log($"Seed room created: {room.RoomID} with {cells.Count} cells");
 
@@ -116,22 +100,51 @@ namespace HRCG.Generation
 
         private Room TryCreateRoom(HexGrid grid, AxialCoord seedPosition)
         {
+            List<AxialCoord> cells = GenerateRoomCells(grid, seedPosition);
+            if (cells == null)
+                return null;
+
+            // Every room after the seed must be reachable: reject it unless at least one
+            // adjacent room can still accept a connection.
+            if (!CanConnectToExistingRoom(grid, cells))
+                return null;
+
+            Room room = PlaceRoom(grid, cells);
+            connectionAnalyzer.ConnectToNeighbors(grid, room, random);
+
+            return room;
+        }
+
+        // Returns null when the shape cannot reach MinHexagonsPerRoom.
+        private List<AxialCoord> GenerateRoomCells(HexGrid grid, AxialCoord seedPosition)
+        {
             int roomSize = random.Next(parameters.MinHexagonsPerRoom, parameters.MaxHexagonsPerRoom + 1);
-            int minAcceptableSize = CalculateMinAcceptableSize(roomSize);
 
             List<AxialCoord> cells = shapeGenerator.GenerateRoomShapeWithRetry(
                 grid,
                 seedPosition,
                 roomSize,
-                minAcceptableSize,
+                parameters.MinHexagonsPerRoom,
                 parameters.MaxRetriesPerRoom,
                 random);
 
-            if (cells.Count < minAcceptableSize)
+            return cells.Count >= parameters.MinHexagonsPerRoom ? cells : null;
+        }
+
+        private bool CanConnectToExistingRoom(HexGrid grid, List<AxialCoord> cells)
+        {
+            foreach (int neighborID in connectionAnalyzer.FindSharedEdges(grid, cells, -1).Keys)
             {
-                return null;
+                Room neighborRoom = grid.GetRoom(neighborID);
+                if (neighborRoom != null && connectionAnalyzer.HasCapacity(neighborRoom))
+                    return true;
             }
 
+            return false;
+        }
+
+        private Room PlaceRoom(HexGrid grid, List<AxialCoord> cells)
+        {
             Room room = grid.CreateRoom();
 
             foreach (AxialCoord coord in cells)
@@ -139,42 +152,12 @@ namespace HRCG.Generation
                 grid.AssignCellToRoom(coord, room.RoomID);
             }
 
-            connectionAnalyzer.AnalyzeAndFlagEdges(grid, room);
-
-            ReanalyzeAdjacentRooms(grid, room);
+            connectionAnalyzer.FlagRoomEdges(grid, room);
 
             return room;
         }
 
-        private void ReanalyzeAdjacentRooms(HexGrid grid, Room newRoom)
-        {
-            HashSet<int> adjacentRoomIDs = new HashSet<int>();
-
-            foreach (AxialCoord cellCoord in newRoom.Cells)
-            {
-                foreach (AxialCoord neighborCoord in cellCoord.GetAllNeighbors())
-                {
-                    HexCell neighborCell = grid.GetCell(neighborCoord);
-                    if (neighborCell != null && 
-                        neighborCell.State == CellState.Room && 
-                        neighborCell.RoomID != newRoom.RoomID &&
-                        neighborCell.RoomID >= 0)
-                    {
-                        adjacentRoomIDs.Add(neighborCell.RoomID);
-                    }
-                }
-            }
-
-            foreach (int roomID in adjacentRoomIDs)
-            {
-                Room adjacentRoom = grid.GetRoom(roomID);
-                if (adjacentRoom != null)
-                {
-                    connectionAnalyzer.AnalyzeAndFlagEdges(grid, adjacentRoom);
-                }
-            }
-        }
-
+        // The frontier holds every empty cell touching the structure built so far.
         private void UpdateFrontier(HexGrid grid, Room room, HashSet<AxialCoord> frontier)
         {
             foreach (AxialCoord cellCoord in room.Cells)
@@ -186,42 +169,28 @@ namespace HRCG.Generation
                     HexCell neighborCell = grid.GetCell(neighborCoord);
                     if (neighborCell == null || neighborCell.State == CellState.Empty)
                     {
-                        if (!IsAdjacentToRoom(grid, neighborCoord, room.RoomID))
-                        {
-                            frontier.Add(neighborCoord);
-                        }
-                    }
-                    else
-                    {
-                        frontier.Remove(neighborCoord);
+                        frontier.Add(neighborCoord);
                     }
                 }
             }
         }
 
-        private bool IsAdjacentToRoom(HexGrid grid, AxialCoord coord, int roomID)
+        // Rooms placed early may end up below MinConnectionsPerRoom; add doors to adjacent rooms where limits allow.
+        private void EnsureMinimumConnections(HexGrid grid)
         {
-            foreach (AxialCoord neighbor in coord.GetAllNeighbors())
+            List<Room> rooms = new List<Room>(grid.GetAllRooms());
+            rooms.Sort((a, b) => a.RoomID.CompareTo(b.RoomID));
+
+            foreach (Room room in rooms)
             {
-                HexCell cell = grid.GetCell(neighbor);
-                if (cell != null && cell.RoomID == roomID)
-                {
-                    return true;
-                }
+                connectionAnalyzer.EnsureMinimumConnections(grid, room, parameters.MinConnectionsPerRoom, random);
             }
-            return false;
         }
 
         private AxialCoord SelectFromFrontier(HashSet<AxialCoord> frontier)
         {
             int index = random.Next(frontier.Count);
             return frontier.ElementAt(index);
-        }
-
-        private int CalculateMinAcceptableSize(int targetSize)
-        {
-            int halfTarget = Math.Max(1, targetSize / 2);
-            return Math.Min(halfTarget, parameters.MinHexagonsPerRoom);
         }
 
         private void ValidateGeneration(HexGrid grid)

@@ -1,10 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HRCG.Core;
 using UnityEngine;
 
 namespace HRCG.Generation
 {
+    // Flags room edges and places doors. Each connected pair of rooms gets exactly one door,
+    // on a randomly chosen edge they share.
     public class ConnectionAnalyzer
     {
         private readonly int maxConnectionsPerRoom;
@@ -14,7 +16,13 @@ namespace HRCG.Generation
             this.maxConnectionsPerRoom = Math.Clamp(maxConnectionsPerRoom, 1, 6);
         }
 
-        public void AnalyzeAndFlagEdges(HexGrid grid, Room room)
+        public bool HasCapacity(Room room)
+        {
+            return room.GetConnectionCount() < maxConnectionsPerRoom;
+        }
+
+        // Internal edges become NoWall, every other edge becomes Wall. Doors are added separately.
+        public void FlagRoomEdges(HexGrid grid, Room room)
         {
             if (room == null)
                 throw new ArgumentNullException(nameof(room));
@@ -27,82 +35,58 @@ namespace HRCG.Generation
 
                 for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
                 {
-                    AnalyzeAndFlagEdge(grid, room, cell, edgeIndex);
+                    HexCell neighborCell = grid.GetCell(cellCoord.GetNeighbor(edgeIndex));
+                    bool sameRoom = neighborCell != null && neighborCell.RoomID == room.RoomID;
+                    cell.SetEdgeFlag(edgeIndex, sameRoom ? WallFlag.NoWall : WallFlag.Wall);
                 }
             }
         }
 
-        private void AnalyzeAndFlagEdge(HexGrid grid, Room room, HexCell cell, int edgeIndex)
+        // Rooms adjacent to the given cells, keyed by room ID, with the shared edges seen from the given cells.
+        public Dictionary<int, List<EdgeConnection>> FindSharedEdges(HexGrid grid, IEnumerable<AxialCoord> cells, int ownRoomID)
         {
-            AxialCoord neighborCoord = cell.Coordinate.GetNeighbor(edgeIndex);
-            HexCell neighborCell = grid.GetCell(neighborCoord);
+            Dictionary<int, List<EdgeConnection>> sharedEdges = new Dictionary<int, List<EdgeConnection>>();
 
-            cell.SetEdgeFlag(edgeIndex, WallFlag.None);
+            foreach (AxialCoord cellCoord in cells)
+            {
+                for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+                {
+                    AxialCoord neighborCoord = cellCoord.GetNeighbor(edgeIndex);
+                    HexCell neighborCell = grid.GetCell(neighborCoord);
 
-            if (neighborCell == null || neighborCell.State == CellState.Empty)
-            {
-                cell.SetEdgeFlag(edgeIndex, WallFlag.Wall);
+                    if (neighborCell == null || !neighborCell.IsPartOfRoom() || neighborCell.RoomID == ownRoomID)
+                        continue;
+
+                    if (!sharedEdges.TryGetValue(neighborCell.RoomID, out List<EdgeConnection> edges))
+                    {
+                        edges = new List<EdgeConnection>();
+                        sharedEdges[neighborCell.RoomID] = edges;
+                    }
+
+                    edges.Add(new EdgeConnection(
+                        cellCoord, edgeIndex,
+                        neighborCoord, HexDirection.GetOppositeDirection(edgeIndex)));
+                }
             }
-            else if (neighborCell.RoomID == room.RoomID)
-            {
-                cell.SetEdgeFlag(edgeIndex, WallFlag.NoWall);
-            }
-            else if (neighborCell.RoomID >= 0 && neighborCell.RoomID != room.RoomID)
-            {
-                HandleRoomConnection(grid, room, cell, edgeIndex, neighborCell);
-            }
-            else
-            {
-                cell.SetEdgeFlag(edgeIndex, WallFlag.Wall);
-            }
+
+            return sharedEdges;
         }
 
-        private void HandleRoomConnection(
-            HexGrid grid,
-            Room room,
-            HexCell cell,
-            int edgeIndex,
-            HexCell neighborCell)
+        // Connects the room to as many adjacent rooms as the max-connection limit allows,
+        // visiting neighbors in random order. Returns the number of new connections.
+        public int ConnectToNeighbors(HexGrid grid, Room room, System.Random random)
         {
-            Room neighborRoom = grid.GetRoom(neighborCell.RoomID);
-            if (neighborRoom == null)
-            {
-                cell.SetEdgeFlag(edgeIndex, WallFlag.Wall);
-                return;
-            }
-
-            bool roomCanConnect = room.GetConnectionCount() < maxConnectionsPerRoom;
-            bool neighborCanConnect = neighborRoom.GetConnectionCount() < maxConnectionsPerRoom;
-            bool alreadyConnected = room.IsConnectedTo(neighborRoom.RoomID);
-
-            if (alreadyConnected || (roomCanConnect && neighborCanConnect))
-            {
-                CreateConnection(grid, room, neighborRoom, cell, edgeIndex, neighborCell);
-            }
-            else
-            {
-                cell.SetEdgeFlag(edgeIndex, WallFlag.Wall);
-            }
+            return ConnectToNeighbors(grid, room, random, int.MaxValue);
         }
 
-        private void CreateConnection(
-            HexGrid grid,
-            Room roomA,
-            Room roomB,
-            HexCell cellA,
-            int edgeA,
-            HexCell cellB)
+        // Adds connections until the room has at least minConnections, if adjacent rooms allow it.
+        public int EnsureMinimumConnections(HexGrid grid, Room room, int minConnections, System.Random random)
         {
-            int edgeB = HexDirection.GetOppositeDirection(edgeA);
-
-            cellA.SetEdgeFlag(edgeA, WallFlag.HasDoor);
-            cellB.SetEdgeFlag(edgeB, WallFlag.HasDoor);
-
-            roomA.AddConnection(roomB.RoomID, cellA.Coordinate, edgeA, cellB.Coordinate, edgeB);
-            roomB.AddConnection(roomA.RoomID, cellB.Coordinate, edgeB, cellA.Coordinate, edgeA);
+            int missing = minConnections - room.GetConnectionCount();
+            return missing > 0 ? ConnectToNeighbors(grid, room, random, missing) : 0;
         }
 
-        public bool ValidateRoomConnections(HexGrid grid, Room room, int minConnections)
+        public bool ValidateRoomConnections(Room room, int minConnections)
         {
             if (room == null)
                 return false;
@@ -124,29 +108,49 @@ namespace HRCG.Generation
             return true;
         }
 
-        public int CountPotentialConnections(HexGrid grid, Room room)
+        private int ConnectToNeighbors(HexGrid grid, Room room, System.Random random, int maxNewConnections)
         {
-            if (room == null)
-                return 0;
+            Dictionary<int, List<EdgeConnection>> sharedEdges = FindSharedEdges(grid, room.Cells, room.RoomID);
 
-            HashSet<int> neighborRoomIDs = new HashSet<int>();
+            List<int> neighborIDs = new List<int>(sharedEdges.Keys);
+            neighborIDs.Sort();
+            Shuffle(neighborIDs, random);
 
-            foreach (AxialCoord cellCoord in room.Cells)
+            int created = 0;
+
+            foreach (int neighborID in neighborIDs)
             {
-                foreach (AxialCoord neighborCoord in cellCoord.GetAllNeighbors())
-                {
-                    HexCell neighborCell = grid.GetCell(neighborCoord);
-                    if (neighborCell != null && 
-                        neighborCell.State == CellState.Room && 
-                        neighborCell.RoomID != room.RoomID &&
-                        neighborCell.RoomID >= 0)
-                    {
-                        neighborRoomIDs.Add(neighborCell.RoomID);
-                    }
-                }
+                if (created >= maxNewConnections || !HasCapacity(room))
+                    break;
+
+                Room neighborRoom = grid.GetRoom(neighborID);
+                if (neighborRoom == null || room.IsConnectedTo(neighborID) || !HasCapacity(neighborRoom))
+                    continue;
+
+                List<EdgeConnection> edges = sharedEdges[neighborID];
+                CreateDoor(grid, room, neighborRoom, edges[random.Next(edges.Count)]);
+                created++;
             }
 
-            return neighborRoomIDs.Count;
+            return created;
+        }
+
+        private static void CreateDoor(HexGrid grid, Room roomA, Room roomB, EdgeConnection edge)
+        {
+            grid.GetCell(edge.CellA).SetEdgeFlag(edge.EdgeIndexA, WallFlag.HasDoor);
+            grid.GetCell(edge.CellB).SetEdgeFlag(edge.EdgeIndexB, WallFlag.HasDoor);
+
+            roomA.AddConnection(roomB.RoomID, edge.CellA, edge.EdgeIndexA, edge.CellB, edge.EdgeIndexB);
+            roomB.AddConnection(roomA.RoomID, edge.CellB, edge.EdgeIndexB, edge.CellA, edge.EdgeIndexA);
+        }
+
+        private static void Shuffle<T>(List<T> list, System.Random random)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
         }
     }
 }

@@ -126,6 +126,12 @@ namespace HRCG.Generation
                 return false;
             }
 
+            if (MaxConnectionsPerRoom == 1 && TargetRoomCount > 2)
+            {
+                errorMessage = "MaxConnectionsPerRoom = 1 allows at most 2 connected rooms; increase it or lower TargetRoomCount";
+                return false;
+            }
+
             if (MaxIterations <= 0)
             {
                 errorMessage = "MaxIterations must be greater than 0";
