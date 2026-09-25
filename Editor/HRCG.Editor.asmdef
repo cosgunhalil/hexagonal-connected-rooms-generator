@@ -19,7 +19,7 @@
     "versionDefines": [
         {
             "name": "com.unity.ai.navigation",
-            "expression": "1.0.0",
+            "expression": "1.1.0",
             "define": "HRCG_AI_NAVIGATION"
         }
     ],

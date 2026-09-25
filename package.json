@@ -1,9 +1,9 @@
 {
   "name": "com.hrcg.hexagonal-rooms-generator",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "displayName": "Hexagonal Connected Rooms Generator",
-  "description": "A procedural generation tool for Unity that creates interconnected rooms using hexagonal grid systems. Each room is defined by clusters of adjacent hexagonal units, generating seamless single-mesh outputs using ProBuilder.",
-  "unity": "2020.3",
+  "description": "A procedural generation tool for Unity that creates interconnected rooms on a hexagonal grid. Each room is a cluster of adjacent hexagons; the level is built as a single ProBuilder mesh with doors, optional colliders, NavMesh, spawn points and door prefabs.",
+  "unity": "2021.3",
   "keywords": [
     "procedural",
     "generation",
@@ -12,7 +12,8 @@
     "dungeon",
     "level design",
     "probuilder",
-    "mesh generation"
+    "mesh generation",
+    "navmesh"
   ],
   "author": {
     "name": "Halil Cosgun",
