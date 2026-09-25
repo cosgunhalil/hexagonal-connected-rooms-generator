@@ -1,11 +1,12 @@
 # Connected Rooms Generator (CRG)
 
-Procedural level generation for Unity. CRG grows a set of connected rooms on a hexagonal, square, triangle or octagon + square grid, where every room is a cluster of adjacent cells, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
+Procedural level generation for Unity. CRG grows a set of connected rooms on a hexagonal, square, triangle or octagon + square grid, or mixes all of them in one level, where every room is a cluster of adjacent cells, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
 
 On top of the geometry it can add colliders, bake a NavMesh, place a door prefab in every doorway, create a spawn point in each room and mark start/end rooms, so a generated level is ready to play.
 
 ## Features
 
+- **Four grid types, or all at once**: hexagons, squares, triangles and octagons + squares, or a mixed level where every room picks its own grid type by weight.
 - **Connected by construction**: every room is reachable from the first one through doors. Each pair of connected rooms gets exactly one door, centered on a shared edge.
 - **Single mesh output**: one `ProBuilderMesh` with separate floor, wall and ceiling material slots, still editable with ProBuilder tools. Walls can be zero-thickness planes or solid walls of any thickness, with optional ceilings. Optionally one mesh per room.
 - **Reproducible**: the same seed and settings always produce the same level.
@@ -32,7 +33,7 @@ Alternatively, clone or copy the repository into your project's `Assets` or `Pac
 
 ## Quick start
 
-- **CRG → Generate Quick Level (Small / Medium / Large)** generates a level with preset settings and a random seed.
+- **CRG → Generate Quick Level (Small / Medium / Large / Mixed)** generates a level with preset settings and a random seed; Mixed uses every grid type.
 - **CRG → Level Generator** (also under **Window → CRG**) opens the full generator window: set parameters, materials and an optional door prefab, then click **Generate Level**.
 - **GameObject → CRG → Create Level Generator** adds an `CRGRuntimeComponent` to the scene. It can generate from its Inspector, or automatically on Start at runtime.
 - **Assets → Create → CRG → Generation Parameters** creates a reusable parameters asset.
@@ -47,13 +48,25 @@ The generator window also offers **Generate (Separate Rooms)** (one mesh per roo
 4. Internal edges of a room are left open. Edges to empty space become walls. For each adjacent room it may connect to (up to the max connection count, subject to **Loop Chance**), one random shared edge becomes a door.
 5. After the target room count is reached, rooms below the minimum connection count get extra doors where neighbors allow.
 
+### Mixed levels
+
+With **Grid Type = Mixed (all grid types)**, every room picks its own grid type by the four **grid type weights**, and rooms are fitted together edge to edge. Every grid type has the same edge length (Cell Size), so an edge of any room can line up exactly with an edge of a room on any other grid:
+
+1. The first room is grown at the origin on a weighted-random grid type.
+2. A free outer edge of a placed room is picked (weighted by **Layout Bias**), a new room is grown on its own grid, and it is rotated and moved so one of its outer edges lies exactly on the picked edge. That edge becomes the door.
+3. The placement is kept only if the new room overlaps no other room and touches other rooms only along exactly matching edges; otherwise another edge or shape is tried.
+4. Other edges the new room happens to share with placed rooms become walls between rooms, or extra doors by **Loop Chance**.
+
+Rooms on different grids leave small empty wedges between them; those stay outside space with outer walls on both sides. A rolled grid type is kept until a room of that type is placed, so the level's mix follows the weights. Start Position is not used by mixed levels.
+
 Cells lie in the XZ plane with +Z as north: hexagons are pointy-top, squares are axis-aligned, triangles are equilateral with alternating up- and down-pointing cells, octagon + square grids combine octagons (flat sides facing the compass directions) with 45 degree squares in the gaps, and Cell Size is always the edge length.
 
 ## Parameters
 
 | Group | Parameter | Default | Description |
 |---|---|---|---|
-| Grid | Grid Type | Hexagon | Shape of the cells rooms are built from: Hexagon, Square, Triangle or Octagon + Square (rooms can mix large octagons and small squares). |
+| Grid | Grid Type | Hexagon | Shape of the cells rooms are built from: Hexagon, Square, Triangle, Octagon + Square (rooms can mix large octagons and small squares), or Mixed (every room its own grid type). |
+| | Hexagon / Square / Triangle / Octagon + Square Weight | 1 each | Mixed levels only: relative chance that a room uses that grid type (0 = never; at least one must be above 0). |
 | | Cell Size | 10 | Edge length of one cell in world units. |
 | Walls | Wall Height | 3 | Height of walls. |
 | | Door Height | 2.5 | Height of door openings (at most Wall Height). |
@@ -126,10 +139,14 @@ public class LevelBootstrap : MonoBehaviour
 }
 ```
 
+For a mixed level, set `parameters.GridType = GridType.Mixed` (and the grid type weights); `GenerateComplete` and `LevelGeometryGenerator.CreateFor(parameters)` pick the right generator.
+
 For more control, run the steps separately:
 
 ```csharp
-CellGrid grid = new CRGGenerator().Generate(parameters);         // logical layout only
+CellGrid grid = new CRGGenerator().Generate(parameters);         // logical layout only (single grid type)
+// Mixed levels: MixedLevel mixed = new MixedLevelGenerator().Generate(parameters);
+//               LevelGeometryGenerator.FromParameters(mixed, parameters)
 LevelGeometryGenerator geometry = LevelGeometryGenerator.FromParameters(grid, parameters);
 geometry.SetMaterials(floorMaterial, wallMaterial);
 geometry.SetDoorPrefab(doorPrefab);
@@ -159,6 +176,10 @@ Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → T
 - With thick walls, outer corners where a room wraps around a neighboring cell are chamfered rather than rounded.
 - Min Connections Per Room is best effort for rooms at the edge of the level.
 - The level is built around the origin; move the generated GameObject to place it elsewhere.
+
+## Mixed-level data
+
+For mixed levels `CRGLevelData.IsMixed` is true, and each `RoomData` also carries the room's `GridType` and `Placement` (where its own grid sits in the level). Use the room-aware helpers such as `GetTopology(room)`, `GetCellLocalPosition(room, cell)` and `GetRoomAnchorLocalPosition(room)`; the door helpers already handle mixed levels.
 
 ## Migrating from 0.2.x (grid abstraction, 0.3.0)
 

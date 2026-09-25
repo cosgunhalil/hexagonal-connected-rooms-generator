@@ -200,6 +200,76 @@ namespace CRG.Tests
             Assert.That(byRoom.GetComponentsInChildren<ProBuilderMesh>().Sum(mesh => mesh.faceCount), Is.EqualTo(single.GetComponent<ProBuilderMesh>().faceCount));
         }
 
+        [Test]
+        public void GridTypeMixed_IsRoutedToTheMixedGenerator()
+        {
+            parameters.GridType = GridType.Mixed;
+            GameObject levelObject = Track(LevelGeometryGenerator.GenerateComplete(parameters));
+
+            CRGLevelData data = levelObject.GetComponent<CRGLevelData>();
+            Assert.That(data.IsMixed, Is.True);
+            Assert.That(data.Rooms.Count, Is.EqualTo(parameters.TargetRoomCount));
+            Assert.That(data.Rooms.Select(room => room.GridType).Distinct().Count(), Is.GreaterThan(1), "a mixed level should use several grid types");
+
+            GameObject byRoom = Track(LevelGeometryGenerator.CreateFor(parameters).GenerateLevelSeparateByRoom());
+            Assert.That(byRoom.GetComponent<CRGLevelData>().IsMixed, Is.True);
+        }
+
+        [Test]
+        public void SingleGridGenerator_RefusesMixed()
+        {
+            parameters.GridType = GridType.Mixed;
+            Assert.Throws<System.ArgumentException>(() => new CRGGenerator().Generate(parameters));
+            Assert.Throws<System.ArgumentException>(() => GridTopology.Get(GridType.Mixed));
+        }
+
+        [Test]
+        public void Validate_Mixed_NeedsAWeight_AndUsesTheEnabledGridsForDoorClearance()
+        {
+            parameters.GridType = GridType.Mixed;
+            parameters.HexagonWeight = 0f;
+            parameters.SquareWeight = 0f;
+            parameters.TriangleWeight = 0f;
+            parameters.OctagonSquareWeight = 0f;
+            Assert.That(parameters.Validate(out _), Is.False, "all weights 0");
+
+            // 2.5 m walls with 1/5 doors fit hexagons (inset 0.866) but not triangles (inset 1.732).
+            parameters.WallThickness = 2.5f;
+            parameters.HexagonWeight = 1f;
+            Assert.That(parameters.Validate(out _), Is.True, "hexagons only");
+
+            parameters.TriangleWeight = 1f;
+            Assert.That(parameters.Validate(out _), Is.False, "triangles enabled");
+        }
+
+        [Test]
+        public void LoopChanceZero_ProducesTree()
+        {
+            parameters.LoopChance = 0f;
+
+            for (int seed = 0; seed < 10; seed++)
+            {
+                parameters.RandomSeed = seed;
+                MixedLevel level = new MixedLevelGenerator().Generate(parameters);
+                Assert.That(level.Doors.Count(), Is.EqualTo(level.Rooms.Count - 1), $"seed {seed}");
+            }
+        }
+
+        [Test]
+        public void ColliderAndSpawnToggles_ApplyToMixedLevels()
+        {
+            parameters.GridType = GridType.Mixed;
+            parameters.AddMeshCollider = false;
+            parameters.CreateSpawnPoints = false;
+            GameObject levelObject = Track(LevelGeometryGenerator.GenerateComplete(parameters));
+
+            Assert.That(levelObject.GetComponentsInChildren<Collider>(), Is.Empty);
+            Assert.That(levelObject.GetComponent<CRGLevelData>().Rooms.All(room => room.SpawnPoint == null), Is.True);
+
+            parameters.AddMeshCollider = true;
+            Assert.That(Track(LevelGeometryGenerator.GenerateComplete(parameters)).GetComponent<MeshCollider>(), Is.Not.Null);
+        }
+
 #if CRG_AI_NAVIGATION
         [Test]
         public void NavMesh_ConnectsStartRoomToEndRoom()

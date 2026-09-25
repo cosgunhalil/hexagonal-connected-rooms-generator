@@ -24,6 +24,9 @@ namespace CRG.Generation
             if (!parameters.Validate(out string errorMessage))
                 throw new ArgumentException($"Invalid parameters: {errorMessage}");
 
+            if (parameters.GridType == GridType.Mixed)
+                throw new ArgumentException("Mixed levels use a grid per room; generate them with MixedLevelGenerator");
+
             this.parameters = parameters;
             this.random = parameters.RandomSeed >= 0 
                 ? new System.Random(parameters.RandomSeed)

@@ -189,8 +189,14 @@ namespace CRG.Generation
             }
 
             // Wall corners move the inner face of a wall inwards along the edge; the door opening must stay clear of them.
+            if (GridType == GridType.Mixed && GetTotalGridWeight() <= 0f)
+            {
+                errorMessage = "Mixed levels need at least one grid type weight above 0";
+                return false;
+            }
+
             if (WallThickness > 0f &&
-                (CellSize - CellSize * DoorWidthRatio) / 2f < WallThickness * GridTopology.Get(GridType).ThickWallCornerInsetPerThickness + MinDoorClearance)
+                (CellSize - CellSize * DoorWidthRatio) / 2f < WallThickness * GetCornerInsetPerThickness() + MinDoorClearance)
             {
                 errorMessage = "Doors are too wide for this WallThickness; lower DoorWidthRatio or WallThickness";
                 return false;
@@ -276,6 +282,41 @@ namespace CRG.Generation
 
             errorMessage = string.Empty;
             return true;
+        }
+
+        public float GetGridWeight(GridType type)
+        {
+            switch (type)
+            {
+                case GridType.Hexagon: return HexagonWeight;
+                case GridType.Square: return SquareWeight;
+                case GridType.Triangle: return TriangleWeight;
+                case GridType.OctagonSquare: return OctagonSquareWeight;
+                default: return 0f;
+            }
+        }
+
+        public float GetTotalGridWeight()
+        {
+            float total = 0f;
+            foreach (GridType type in GridTopology.SingleGridTypes)
+                total += Math.Max(0f, GetGridWeight(type));
+            return total;
+        }
+
+        // Largest thick-wall corner inset of the grid types the level can contain.
+        private float GetCornerInsetPerThickness()
+        {
+            if (GridType != GridType.Mixed)
+                return GridTopology.Get(GridType).ThickWallCornerInsetPerThickness;
+
+            float inset = 0f;
+            foreach (GridType type in GridTopology.SingleGridTypes)
+            {
+                if (GetGridWeight(type) > 0f)
+                    inset = Math.Max(inset, GridTopology.Get(type).ThickWallCornerInsetPerThickness);
+            }
+            return inset;
         }
 
         public static GenerationParameters CreateDefault()

@@ -91,8 +91,11 @@ namespace CRG.Editor
             EditorGUILayout.LabelField("Basic Settings", EditorStyles.boldLabel);
 
             parameters.GridType = (GridType)EditorGUILayout.EnumPopup(
-                new GUIContent("Grid Type", "Shape of the cells rooms are built from"),
+                new GUIContent("Grid Type", "Shape of the cells rooms are built from. Mixed gives every room its own grid type"),
                 parameters.GridType);
+
+            if (parameters.GridType == GridType.Mixed)
+                DrawGridWeights();
 
             parameters.CellSize = EditorGUILayout.Slider(
                 new GUIContent("Cell Size", "Edge length of each cell in world units"),
@@ -132,6 +135,41 @@ namespace CRG.Editor
             parameters.TargetRoomCount = EditorGUILayout.IntSlider(
                 new GUIContent("Room Count", "Target number of rooms to generate"),
                 parameters.TargetRoomCount, 1, 100);
+        }
+
+        private void DrawGridWeights()
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.LabelField("Grid Type Weights", EditorStyles.miniBoldLabel);
+
+            parameters.HexagonWeight = EditorGUILayout.Slider(
+                new GUIContent("Hexagon", "Relative chance that a room uses hexagons (0 = never)"), parameters.HexagonWeight, 0f, 10f);
+            parameters.SquareWeight = EditorGUILayout.Slider(
+                new GUIContent("Square", "Relative chance that a room uses squares (0 = never)"), parameters.SquareWeight, 0f, 10f);
+            parameters.TriangleWeight = EditorGUILayout.Slider(
+                new GUIContent("Triangle", "Relative chance that a room uses triangles (0 = never)"), parameters.TriangleWeight, 0f, 10f);
+            parameters.OctagonSquareWeight = EditorGUILayout.Slider(
+                new GUIContent("Octagon + Square", "Relative chance that a room uses octagons and squares (0 = never)"), parameters.OctagonSquareWeight, 0f, 10f);
+
+            float total = parameters.GetTotalGridWeight();
+            if (total <= 0f)
+            {
+                EditorGUILayout.HelpBox("Set at least one weight above 0.", MessageType.Error);
+            }
+            else
+            {
+                EditorGUILayout.LabelField(" ",
+                    $"Hex {Share(parameters.HexagonWeight, total)} · Square {Share(parameters.SquareWeight, total)} · " +
+                    $"Triangle {Share(parameters.TriangleWeight, total)} · Octagon {Share(parameters.OctagonSquareWeight, total)}",
+                    EditorStyles.miniLabel);
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        private static string Share(float weight, float total)
+        {
+            return $"{Mathf.Max(0f, weight) / total:P0}";
         }
 
         private void DrawRoomSettings()
@@ -404,10 +442,7 @@ namespace CRG.Editor
 
             float startTime = Time.realtimeSinceStartup;
 
-            CRGGenerator generator = new CRGGenerator();
-            CellGrid grid = generator.Generate(parameters);
-
-            LevelGeometryGenerator geometryGenerator = LevelGeometryGenerator.FromParameters(grid, parameters);
+            LevelGeometryGenerator geometryGenerator = LevelGeometryGenerator.CreateFor(parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);
             geometryGenerator.SetDoorPrefab(doorPrefab);
 

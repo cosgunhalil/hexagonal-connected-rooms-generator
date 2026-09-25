@@ -128,7 +128,8 @@ namespace CRG.Editor
             {
                 string color = ColorUtility.ToHtmlStringRGB(GetRoomColor(room.RoomID));
                 string doorsLabel = room.ConnectedRoomIDs.Count == 1 ? "door" : "doors";
-                string text = $"<color=#{color}>Room {room.RoomID}</color>\n{room.Cells.Count} hex · {room.ConnectedRoomIDs.Count} {doorsLabel}";
+                string gridName = data.IsMixed ? $" ({room.GridType})" : string.Empty;
+                string text = $"<color=#{color}>Room {room.RoomID}{gridName}</color>\n{room.Cells.Count} {(room.Cells.Count == 1 ? "cell" : "cells")} · {room.ConnectedRoomIDs.Count} {doorsLabel}";
 
                 if (room.HasCeiling)
                     text += " · ceiling";

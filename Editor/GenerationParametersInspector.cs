@@ -25,9 +25,15 @@ namespace CRG.Editor
             SerializedProperty end = parameters.GetEndProperty();
             bool enterChildren = true;
 
+            bool mixed = parameters.FindPropertyRelative(nameof(GenerationParameters.GridType)).enumValueIndex == (int)CRG.Core.GridType.Mixed;
+
             while (property.NextVisible(enterChildren) && !SerializedProperty.EqualContents(property, end))
             {
                 enterChildren = false;
+
+                // Grid type weights only matter for mixed levels.
+                if (!mixed && IsGridWeight(property.name))
+                    continue;
 
                 if (property.name == nameof(GenerationParameters.NavMeshAgentTypeID))
                 {
@@ -61,6 +67,14 @@ namespace CRG.Editor
             }
 
             CRGEditorGUI.NavMeshWarnings(asset.parameters);
+        }
+
+        private static bool IsGridWeight(string propertyName)
+        {
+            return propertyName == nameof(GenerationParameters.HexagonWeight) ||
+                   propertyName == nameof(GenerationParameters.SquareWeight) ||
+                   propertyName == nameof(GenerationParameters.TriangleWeight) ||
+                   propertyName == nameof(GenerationParameters.OctagonSquareWeight);
         }
     }
 }

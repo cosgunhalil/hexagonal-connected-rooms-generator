@@ -85,10 +85,7 @@ namespace CRG.Runtime
 
         private void GenerateByRoom()
         {
-            CRGGenerator generator = new CRGGenerator();
-            var grid = generator.Generate(parameters);
-
-            LevelGeometryGenerator geoGen = LevelGeometryGenerator.FromParameters(grid, parameters);
+            LevelGeometryGenerator geoGen = LevelGeometryGenerator.CreateFor(parameters);
             geoGen.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);
             geoGen.SetDoorPrefab(doorPrefab);
 

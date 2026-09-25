@@ -20,7 +20,7 @@ namespace CRG.Generation
         private const float ToleranceRatio = 1e-3f;
         private const int MaxFailuresPerRolledType = 8;
 
-        private static readonly GridType[] MixableTypes = { GridType.Hexagon, GridType.Square, GridType.Triangle, GridType.OctagonSquare };
+        private static GridType[] MixableTypes => GridTopology.SingleGridTypes;
 
         private GenerationParameters parameters;
         private System.Random random;
@@ -151,19 +151,12 @@ namespace CRG.Generation
 
         public static float GetWeight(GenerationParameters parameters, GridType type)
         {
-            switch (type)
-            {
-                case GridType.Hexagon: return parameters.HexagonWeight;
-                case GridType.Square: return parameters.SquareWeight;
-                case GridType.Triangle: return parameters.TriangleWeight;
-                case GridType.OctagonSquare: return parameters.OctagonSquareWeight;
-                default: return 0f;
-            }
+            return parameters.GetGridWeight(type);
         }
 
         private static float TotalWeight(GenerationParameters parameters)
         {
-            return MixableTypes.Sum(type => Mathf.Max(0f, GetWeight(parameters, type)));
+            return parameters.GetTotalGridWeight();
         }
 
         // A rolled grid type is kept across frontier edges until a room of that type is placed (or it failed on

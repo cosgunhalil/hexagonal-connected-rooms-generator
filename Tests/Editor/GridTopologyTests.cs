@@ -14,9 +14,17 @@ namespace CRG.Tests
         private const float CellSize = 10f;
         private const float Tolerance = 1e-3f;
 
+        // Every grid type that is a topology of its own (Mixed is not).
         private static IEnumerable<GridType> AllGridTypes()
         {
-            return Enum.GetValues(typeof(GridType)).Cast<GridType>();
+            return GridTopology.SingleGridTypes;
+        }
+
+        [Test]
+        public void SingleGridTypes_CoverEveryGridTypeExceptMixed()
+        {
+            IEnumerable<GridType> expected = Enum.GetValues(typeof(GridType)).Cast<GridType>().Where(type => type != GridType.Mixed);
+            Assert.That(GridTopology.SingleGridTypes, Is.EquivalentTo(expected));
         }
 
         // A patch of cells around the origin, including every variant the topology uses there.

@@ -10,7 +10,10 @@ namespace CRG.Core
         Square,
         Triangle,
         [InspectorName("Octagon + Square")]
-        OctagonSquare
+        OctagonSquare,
+        // Every room picks its own grid type by weight (see MixedLevelGenerator); not a topology of its own.
+        [InspectorName("Mixed (all grid types)")]
+        Mixed
     }
 
     // Shape and connectivity of a cell grid. All sizes are in world units; cellSize is the edge length,
@@ -55,6 +58,9 @@ namespace CRG.Core
         private static readonly TriangleTopology Triangle = new TriangleTopology();
         private static readonly OctagonSquareTopology OctagonSquare = new OctagonSquareTopology();
 
+        // Every grid type that is a topology of its own (everything except Mixed).
+        public static readonly GridType[] SingleGridTypes = { GridType.Hexagon, GridType.Square, GridType.Triangle, GridType.OctagonSquare };
+
         public static IGridTopology Get(GridType type)
         {
             switch (type)
@@ -67,6 +73,8 @@ namespace CRG.Core
                     return Triangle;
                 case GridType.OctagonSquare:
                     return OctagonSquare;
+                case GridType.Mixed:
+                    throw new ArgumentException("Mixed levels use a grid per room; generate them with MixedLevelGenerator", nameof(type));
                 default:
                     throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown grid type");
             }

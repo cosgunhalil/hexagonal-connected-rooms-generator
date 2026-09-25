@@ -148,13 +148,19 @@ namespace CRG.Geometry
             return FinishLevel(BuildMesh("Generated Level (Walls Only)", GetParts(), includeFloors: false, includeWalls: true, includeCeiling: false));
         }
 
+        // Generates the layout (single-grid or mixed, by parameters.GridType) and returns a generator ready to build it.
+        public static LevelGeometryGenerator CreateFor(GenerationParameters parameters)
+        {
+            if (parameters.GridType == GridType.Mixed)
+                return FromParameters(new MixedLevelGenerator().Generate(parameters), parameters);
+
+            return FromParameters(new CRGGenerator().Generate(parameters), parameters);
+        }
+
         public static GameObject GenerateComplete(GenerationParameters parameters, Material floorMaterial = null, Material wallMaterial = null,
             GameObject doorPrefab = null, Material ceilingMaterial = null)
         {
-            CRGGenerator generator = new CRGGenerator();
-            CellGrid grid = generator.Generate(parameters);
-
-            LevelGeometryGenerator geometryGenerator = FromParameters(grid, parameters);
+            LevelGeometryGenerator geometryGenerator = CreateFor(parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);
             geometryGenerator.SetDoorPrefab(doorPrefab);
 

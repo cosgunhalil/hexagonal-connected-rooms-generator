@@ -22,7 +22,17 @@ namespace CRG.Editor
             EditorGUILayout.LabelField("Level Summary", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Rooms", data.Rooms.Count.ToString());
             EditorGUILayout.LabelField("Doors", data.Doors.Count.ToString());
-            EditorGUILayout.LabelField("Grid Type", data.GridType.ToString());
+            if (data.IsMixed)
+            {
+                string mix = string.Join(", ", System.Linq.Enumerable.Select(
+                    System.Linq.Enumerable.GroupBy(data.Rooms, room => room.GridType),
+                    group => $"{System.Linq.Enumerable.Count(group)} {group.Key}"));
+                EditorGUILayout.LabelField("Grid Type", $"Mixed ({mix})");
+            }
+            else
+            {
+                EditorGUILayout.LabelField("Grid Type", data.GridType.ToString());
+            }
             EditorGUILayout.LabelField("Cell Size", data.CellSize.ToString("F2"));
 
             CRGLevelData.RoomData startRoom = data.StartRoom;
