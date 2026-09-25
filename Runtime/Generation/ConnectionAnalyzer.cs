@@ -72,11 +72,33 @@ namespace HRCG.Generation
             return sharedEdges;
         }
 
-        // Connects the room to as many adjacent rooms as the max-connection limit allows,
-        // visiting neighbors in random order. Returns the number of new connections.
-        public int ConnectToNeighbors(HexGrid grid, Room room, System.Random random)
+        // Connects the room to up to maxNewConnections adjacent rooms (bounded by the max-connection
+        // limit), visiting neighbors in random order. Returns the number of new connections.
+        public int ConnectToNeighbors(HexGrid grid, Room room, System.Random random, int maxNewConnections = int.MaxValue)
         {
-            return ConnectToNeighbors(grid, room, random, int.MaxValue);
+            Dictionary<int, List<EdgeConnection>> sharedEdges = FindSharedEdges(grid, room.Cells, room.RoomID);
+
+            List<int> neighborIDs = new List<int>(sharedEdges.Keys);
+            neighborIDs.Sort();
+            Shuffle(neighborIDs, random);
+
+            int created = 0;
+
+            foreach (int neighborID in neighborIDs)
+            {
+                if (created >= maxNewConnections || !HasCapacity(room))
+                    break;
+
+                Room neighborRoom = grid.GetRoom(neighborID);
+                if (neighborRoom == null || room.IsConnectedTo(neighborID) || !HasCapacity(neighborRoom))
+                    continue;
+
+                List<EdgeConnection> edges = sharedEdges[neighborID];
+                CreateDoor(grid, room, neighborRoom, edges[random.Next(edges.Count)]);
+                created++;
+            }
+
+            return created;
         }
 
         // Adds connections until the room has at least minConnections, if adjacent rooms allow it.
@@ -106,33 +128,6 @@ namespace HRCG.Generation
             }
 
             return true;
-        }
-
-        private int ConnectToNeighbors(HexGrid grid, Room room, System.Random random, int maxNewConnections)
-        {
-            Dictionary<int, List<EdgeConnection>> sharedEdges = FindSharedEdges(grid, room.Cells, room.RoomID);
-
-            List<int> neighborIDs = new List<int>(sharedEdges.Keys);
-            neighborIDs.Sort();
-            Shuffle(neighborIDs, random);
-
-            int created = 0;
-
-            foreach (int neighborID in neighborIDs)
-            {
-                if (created >= maxNewConnections || !HasCapacity(room))
-                    break;
-
-                Room neighborRoom = grid.GetRoom(neighborID);
-                if (neighborRoom == null || room.IsConnectedTo(neighborID) || !HasCapacity(neighborRoom))
-                    continue;
-
-                List<EdgeConnection> edges = sharedEdges[neighborID];
-                CreateDoor(grid, room, neighborRoom, edges[random.Next(edges.Count)]);
-                created++;
-            }
-
-            return created;
         }
 
         private static void CreateDoor(HexGrid grid, Room roomA, Room roomB, EdgeConnection edge)

@@ -24,6 +24,8 @@ namespace HRCG.Editor
             SerializedProperty hexSize = parameters.FindPropertyRelative("HexSize");
             SerializedProperty wallHeight = parameters.FindPropertyRelative("WallHeight");
             SerializedProperty doorHeight = parameters.FindPropertyRelative("DoorHeight");
+            SerializedProperty doorWidthRatio = parameters.FindPropertyRelative("DoorWidthRatio");
+            SerializedProperty reserveSlot = parameters.FindPropertyRelative("ReserveConnectionForGrowth");
             SerializedProperty minHex = parameters.FindPropertyRelative("MinHexagonsPerRoom");
             SerializedProperty maxHex = parameters.FindPropertyRelative("MaxHexagonsPerRoom");
             SerializedProperty targetRooms = parameters.FindPropertyRelative("TargetRoomCount");
@@ -41,6 +43,7 @@ namespace HRCG.Editor
             EditorGUILayout.LabelField("Walls", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(wallHeight);
             EditorGUILayout.PropertyField(doorHeight);
+            EditorGUILayout.PropertyField(doorWidthRatio);
 
             if (doorHeight.floatValue > wallHeight.floatValue)
             {
@@ -66,6 +69,7 @@ namespace HRCG.Editor
             EditorGUILayout.LabelField("Connections", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(minConn);
             EditorGUILayout.PropertyField(maxConn);
+            EditorGUILayout.PropertyField(reserveSlot);
             
             if (maxConn.intValue < minConn.intValue)
             {

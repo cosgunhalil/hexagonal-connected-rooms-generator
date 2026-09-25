@@ -21,6 +21,10 @@ namespace HRCG.Generation
         [Range(0.5f, 20f)]
         public float DoorHeight = 2.5f;
 
+        [Tooltip("Door width as a fraction of the hexagon edge length (0.2 = 1/5 of the edge)")]
+        [Range(0.05f, 1f)]
+        public float DoorWidthRatio = 0.2f;
+
         [Header("Room Size Settings")]
         [Tooltip("Minimum number of hexagons per room")]
         [Range(1, 20)]
@@ -46,6 +50,10 @@ namespace HRCG.Generation
         [Tooltip("Maximum connections each room can have to other rooms")]
         [Range(1, 6)]
         public int MaxConnectionsPerRoom = 6;
+
+        [Tooltip("New rooms leave one connection slot free so later rooms can attach to them. " +
+                 "Produces larger levels at low MaxConnectionsPerRoom, with fewer loops")]
+        public bool ReserveConnectionForGrowth = true;
 
         [Header("Randomization")]
         [Tooltip("Random seed for reproducible generation (-1 for random)")]
@@ -93,6 +101,12 @@ namespace HRCG.Generation
             if (DoorHeight <= 0 || DoorHeight > WallHeight)
             {
                 errorMessage = "DoorHeight must be greater than 0 and not exceed WallHeight";
+                return false;
+            }
+
+            if (DoorWidthRatio <= 0 || DoorWidthRatio > 1)
+            {
+                errorMessage = "DoorWidthRatio must be greater than 0 and at most 1";
                 return false;
             }
 
@@ -155,12 +169,14 @@ namespace HRCG.Generation
                 HexSize = 10f,
                 WallHeight = 3f,
                 DoorHeight = 2.5f,
+                DoorWidthRatio = 0.2f,
                 MinHexagonsPerRoom = 1,
                 MaxHexagonsPerRoom = 5,
                 TargetRoomCount = 10,
                 StartPosition = new AxialCoord(0, 0),
                 MinConnectionsPerRoom = 1,
                 MaxConnectionsPerRoom = 6,
+                ReserveConnectionForGrowth = true,
                 RandomSeed = -1,
                 MaxIterations = 1000,
                 MaxRetriesPerRoom = 3

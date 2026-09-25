@@ -12,7 +12,6 @@ namespace HRCG.Core
         private const int HexagonEdgeCount = 6;
         private const float DegreesPerVertex = 60f;
         private const float VertexAngleOffset = 30f;
-        private const float DoorWidthRatio = 0.2f;
 
         public static Vector3[] GetHexVertices(float hexSize)
         {
@@ -99,9 +98,9 @@ namespace HRCG.Core
             return (edgeIndex + 3) % HexagonEdgeCount;
         }
 
-        public static float CalculateDoorWidth(float edgeLength)
+        public static float CalculateDoorWidth(float edgeLength, float doorWidthRatio = 0.2f)
         {
-            return edgeLength * DoorWidthRatio;
+            return edgeLength * doorWidthRatio;
         }
 
         private static void ValidateVertexIndex(int vertexIndex)

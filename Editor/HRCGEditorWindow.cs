@@ -91,6 +91,12 @@ namespace HRCG.Editor
                 new GUIContent("Door Height", "Height of door openings in world units"),
                 parameters.DoorHeight, 0.5f, parameters.WallHeight);
 
+            parameters.DoorWidthRatio = EditorGUILayout.Slider(
+                new GUIContent("Door Width (edge ratio)", "Door width as a fraction of the hexagon edge length (0.2 = 1/5)"),
+                parameters.DoorWidthRatio, 0.05f, 1f);
+
+            EditorGUILayout.LabelField(" ", $"Door width: {parameters.HexSize * parameters.DoorWidthRatio:F2} units", EditorStyles.miniLabel);
+
             parameters.TargetRoomCount = EditorGUILayout.IntSlider(
                 new GUIContent("Room Count", "Target number of rooms to generate"),
                 parameters.TargetRoomCount, 1, 100);
@@ -130,6 +136,10 @@ namespace HRCG.Editor
             {
                 parameters.MaxConnectionsPerRoom = parameters.MinConnectionsPerRoom;
             }
+
+            parameters.ReserveConnectionForGrowth = EditorGUILayout.Toggle(
+                new GUIContent("Reserve Slot For Growth", "New rooms leave one connection slot free so later rooms can attach. Larger levels at low Max Connections, fewer loops"),
+                parameters.ReserveConnectionForGrowth);
         }
 
         private void DrawMaterialSettings()
@@ -296,7 +306,7 @@ namespace HRCG.Editor
             HRCGGenerator generator = new HRCGGenerator();
             HexGrid grid = generator.Generate(parameters);
 
-            LevelGeometryGenerator geometryGenerator = new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight);
+            LevelGeometryGenerator geometryGenerator = LevelGeometryGenerator.FromParameters(grid, parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial);
 
             lastGeneratedLevel = buildGeometry(geometryGenerator);

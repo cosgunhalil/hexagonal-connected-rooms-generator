@@ -12,6 +12,7 @@ namespace HRCG.Geometry
         private readonly float hexSize;
         private readonly float wallHeight;
         private readonly float doorHeight;
+        private readonly float doorWidthRatio;
         private readonly float floorHeight;
 
         private readonly List<Vector3> positions = new List<Vector3>();
@@ -20,11 +21,12 @@ namespace HRCG.Geometry
 
         public bool IsEmpty => faces.Count == 0;
 
-        public ProBuilderMeshBuilder(float hexSize, float wallHeight = 3f, float doorHeight = 2.5f, float floorHeight = 0f)
+        public ProBuilderMeshBuilder(float hexSize, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f, float floorHeight = 0f)
         {
             this.hexSize = hexSize;
             this.wallHeight = wallHeight;
             this.doorHeight = doorHeight;
+            this.doorWidthRatio = doorWidthRatio;
             this.floorHeight = floorHeight;
         }
 
@@ -52,7 +54,7 @@ namespace HRCG.Geometry
 
         public void AddDoorWall(AxialCoord coordinate, int edgeIndex, Material material)
         {
-            float doorWidth = HexMath.CalculateDoorWidth(HexMath.GetEdgeLength(hexSize));
+            float doorWidth = HexMath.CalculateDoorWidth(HexMath.GetEdgeLength(hexSize), doorWidthRatio);
             List<WallSegment> segments = HexGeometry.GetDoorWallSegments(
                 coordinate, edgeIndex, hexSize, wallHeight, doorWidth, doorHeight, floorHeight);
 

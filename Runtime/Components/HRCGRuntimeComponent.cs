@@ -80,7 +80,7 @@ namespace HRCG.Runtime
             HRCGGenerator generator = new HRCGGenerator();
             var grid = generator.Generate(parameters);
 
-            LevelGeometryGenerator geoGen = new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight);
+            LevelGeometryGenerator geoGen = LevelGeometryGenerator.FromParameters(grid, parameters);
             geoGen.SetMaterials(floorMaterial, wallMaterial);
 
             generatedLevel = geoGen.GenerateLevelSeparateByRoom();

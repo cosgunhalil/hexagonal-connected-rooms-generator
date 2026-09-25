@@ -10,14 +10,21 @@ namespace HRCG.Geometry
         private readonly HexGrid grid;
         private readonly float wallHeight;
         private readonly float doorHeight;
+        private readonly float doorWidthRatio;
         private Material floorMaterial;
         private Material wallMaterial;
 
-        public LevelGeometryGenerator(HexGrid grid, float wallHeight = 3f, float doorHeight = 2.5f)
+        public LevelGeometryGenerator(HexGrid grid, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f)
         {
             this.grid = grid;
             this.wallHeight = wallHeight;
             this.doorHeight = doorHeight;
+            this.doorWidthRatio = doorWidthRatio;
+        }
+
+        public static LevelGeometryGenerator FromParameters(HexGrid grid, GenerationParameters parameters)
+        {
+            return new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight, parameters.DoorWidthRatio);
         }
 
         public void SetMaterials(Material floor, Material wall)
@@ -72,7 +79,7 @@ namespace HRCG.Geometry
             HRCGGenerator generator = new HRCGGenerator();
             HexGrid grid = generator.Generate(parameters);
 
-            LevelGeometryGenerator geometryGenerator = new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight);
+            LevelGeometryGenerator geometryGenerator = FromParameters(grid, parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial);
 
             return geometryGenerator.GenerateLevel();
@@ -93,7 +100,7 @@ namespace HRCG.Geometry
 
         private GameObject BuildMesh(string name, List<HexCell> cells, bool includeFloors, bool includeWalls)
         {
-            ProBuilderMeshBuilder builder = new ProBuilderMeshBuilder(grid.HexSize, wallHeight, doorHeight);
+            ProBuilderMeshBuilder builder = new ProBuilderMeshBuilder(grid.HexSize, wallHeight, doorHeight, doorWidthRatio);
 
             foreach (HexCell cell in cells)
             {

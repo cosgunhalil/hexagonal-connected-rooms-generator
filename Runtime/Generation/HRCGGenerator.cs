@@ -110,7 +110,11 @@ namespace HRCG.Generation
                 return null;
 
             Room room = PlaceRoom(grid, cells);
-            connectionAnalyzer.ConnectToNeighbors(grid, room, random);
+
+            int maxNewConnections = parameters.ReserveConnectionForGrowth
+                ? Math.Max(1, parameters.MaxConnectionsPerRoom - 1)
+                : int.MaxValue;
+            connectionAnalyzer.ConnectToNeighbors(grid, room, random, maxNewConnections);
 
             return room;
         }
