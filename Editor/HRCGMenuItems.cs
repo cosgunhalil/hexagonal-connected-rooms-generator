@@ -103,12 +103,27 @@ namespace HRCG.Editor
         [MenuItem("HRCG/Clear All Generated Levels")]
         public static void ClearAllGeneratedLevels()
         {
-            GameObject[] rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
             int count = 0;
 
+            // Levels owned by a generator component are its children; clear them but keep the generator.
+#if UNITY_2023_1_OR_NEWER
+            HRCG.Runtime.HRCGRuntimeComponent[] generators = Object.FindObjectsByType<HRCG.Runtime.HRCGRuntimeComponent>(FindObjectsSortMode.None);
+#else
+            HRCG.Runtime.HRCGRuntimeComponent[] generators = Object.FindObjectsOfType<HRCG.Runtime.HRCGRuntimeComponent>();
+#endif
+            foreach (HRCG.Runtime.HRCGRuntimeComponent generator in generators)
+            {
+                if (generator.generatedLevel != null)
+                {
+                    Undo.DestroyObjectImmediate(generator.generatedLevel);
+                    count++;
+                }
+            }
+
+            GameObject[] rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
             foreach (GameObject obj in rootObjects)
             {
-                if (obj.name.Contains("Generated Level") || obj.name.Contains("Level Generator"))
+                if (obj.name.StartsWith("Generated Level"))
                 {
                     Undo.DestroyObjectImmediate(obj);
                     count++;
@@ -136,20 +151,69 @@ namespace HRCG.Editor
         [MenuItem("HRCG/Documentation/GitHub Repository")]
         public static void OpenGitHub()
         {
-            Application.OpenURL("https://github.com/yourusername/hrcg");
+            PackageManifest manifest = LoadPackageManifest();
+            if (manifest?.author == null || string.IsNullOrEmpty(manifest.author.url))
+            {
+                Debug.LogWarning("Repository URL not found in package.json");
+                return;
+            }
+
+            Application.OpenURL(manifest.author.url);
         }
 
         [MenuItem("HRCG/About")]
         public static void ShowAbout()
         {
+            PackageManifest manifest = LoadPackageManifest();
+            string title = string.IsNullOrEmpty(manifest?.displayName) ? "Hexagonal Connected Rooms Generator" : manifest.displayName;
+            string version = string.IsNullOrEmpty(manifest?.version) ? "unknown" : manifest.version;
+
             EditorUtility.DisplayDialog(
-                "Hexagonal Connected Rooms Generator",
-                "Version 1.0.0\n\n" +
-                "A procedural level generation tool for Unity.\n\n" +
-                "Creates interconnected hexagonal rooms with automatic door placement.\n\n" +
-                "Developed with Phase 1-4 implementation complete.",
+                title,
+                $"Version {version}\n\n{manifest?.description}",
                 "OK"
             );
+        }
+
+        // Filled in by JsonUtility.
+#pragma warning disable 0649
+        [System.Serializable]
+        private class PackageManifest
+        {
+            public string displayName;
+            public string version;
+            public string description;
+            public PackageAuthor author;
+        }
+
+        [System.Serializable]
+        private class PackageAuthor
+        {
+            public string url;
+        }
+#pragma warning restore 0649
+
+        // package.json sits one folder above this script's folder, whether the tool is installed
+        // as a UPM package or embedded under Assets.
+        private static PackageManifest LoadPackageManifest()
+        {
+            string[] guids = AssetDatabase.FindAssets($"{nameof(HRCGMenuItems)} t:MonoScript");
+            foreach (string guid in guids)
+            {
+                string scriptPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (System.IO.Path.GetFileNameWithoutExtension(scriptPath) != nameof(HRCGMenuItems))
+                    continue;
+
+                string packageRoot = System.IO.Path.GetDirectoryName(System.IO.Path.GetDirectoryName(scriptPath));
+                string manifestPath = System.IO.Path.Combine(packageRoot, "package.json");
+                if (System.IO.File.Exists(manifestPath))
+                {
+                    return JsonUtility.FromJson<PackageManifest>(System.IO.File.ReadAllText(manifestPath));
+                }
+            }
+
+            Debug.LogWarning("HRCG package.json not found");
+            return null;
         }
     }
 }

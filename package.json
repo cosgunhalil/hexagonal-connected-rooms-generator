@@ -20,17 +20,5 @@
   },
   "dependencies": {
     "com.unity.probuilder": "5.0.0"
-  },
-  "samples": [
-    {
-      "displayName": "Basic Room Generation",
-      "description": "Simple example showing basic room generation with default parameters",
-      "path": "Samples~/BasicGeneration"
-    },
-    {
-      "displayName": "Advanced Generation",
-      "description": "Advanced examples with custom parameters and runtime generation",
-      "path": "Samples~/AdvancedGeneration"
-    }
-  ]
+  }
 }
