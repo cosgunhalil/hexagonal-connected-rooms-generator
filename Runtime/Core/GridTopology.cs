@@ -8,7 +8,9 @@ namespace CRG.Core
     {
         Hexagon,
         Square,
-        Triangle
+        Triangle,
+        [InspectorName("Octagon + Square")]
+        OctagonSquare
     }
 
     // Shape and connectivity of a cell grid. All sizes are in world units; cellSize is the edge length,
@@ -51,6 +53,7 @@ namespace CRG.Core
         private static readonly HexTopology Hexagon = new HexTopology();
         private static readonly SquareTopology Square = new SquareTopology();
         private static readonly TriangleTopology Triangle = new TriangleTopology();
+        private static readonly OctagonSquareTopology OctagonSquare = new OctagonSquareTopology();
 
         public static IGridTopology Get(GridType type)
         {
@@ -62,6 +65,8 @@ namespace CRG.Core
                     return Square;
                 case GridType.Triangle:
                     return Triangle;
+                case GridType.OctagonSquare:
+                    return OctagonSquare;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown grid type");
             }

@@ -13,6 +13,7 @@ namespace CRG.Tests
     [TestFixture(GridType.Hexagon)]
     [TestFixture(GridType.Square)]
     [TestFixture(GridType.Triangle)]
+    [TestFixture(GridType.OctagonSquare)]
     public class ThickWallAndCeilingTests
     {
         private readonly GridType gridType;
@@ -61,7 +62,7 @@ namespace CRG.Tests
             // regular polygon inset by t, whose area scales with the square of the inner radius.
             float apothem = Topology.GetInnerRadius(new CellCoord(0, 0), parameters.CellSize);
             float insetScale = (apothem - parameters.WallThickness) / apothem;
-            float expected = CellArea() * (1f - insetScale * insetScale);
+            float expected = CellArea(new CellCoord(0, 0)) * (1f - insetScale * insetScale);
 
             Assert.That(tops.Sum(t => t.Area), Is.EqualTo(expected).Within(expected * 1e-3f));
         }
@@ -123,10 +124,9 @@ namespace CRG.Tests
             parameters.WallThickness = thickness;
             parameters.AddCeiling = true;
             GameObject level = Generate();
-            int cells = level.GetComponent<CRGLevelData>().Rooms.Sum(room => room.Cells.Count);
+            float expected = level.GetComponent<CRGLevelData>().Rooms.SelectMany(room => room.Cells).Sum(cell => CellArea(cell));
 
             List<Triangle> ceiling = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).ToList();
-            float expected = cells * CellArea();
 
             Assert.That(ceiling.Sum(t => t.Area), Is.EqualTo(expected).Within(expected * 1e-3f));
         }
@@ -177,8 +177,7 @@ namespace CRG.Tests
                 GameObject level = Generate();
                 List<CRGLevelData.RoomData> rooms = level.GetComponent<CRGLevelData>().Rooms.ToList();
 
-                int coveredCells = rooms.Where(room => room.HasCeiling).Sum(room => room.Cells.Count);
-                float expected = coveredCells * CellArea();
+                float expected = rooms.Where(room => room.HasCeiling).SelectMany(room => room.Cells).Sum(cell => CellArea(cell));
                 float actual = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).Sum(t => t.Area);
                 Assert.That(actual, Is.EqualTo(expected).Within(Mathf.Max(expected, 1f) * 1e-3f), $"seed {seed}");
 
@@ -388,10 +387,9 @@ namespace CRG.Tests
 
         private IGridTopology Topology => GridTopology.Get(gridType);
 
-        // Area of one cell (all cells of a regular tiling are congruent here).
-        private float CellArea()
+        // Area of one cell, from its corners (grids with two cell shapes have two cell areas).
+        private float CellArea(CellCoord cell)
         {
-            CellCoord cell = new CellCoord(0, 0);
             int count = Topology.GetEdgeCount(cell);
             float area = 0f;
             for (int i = 0; i < count; i++)

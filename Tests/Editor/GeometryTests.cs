@@ -12,6 +12,7 @@ namespace CRG.Tests
     [TestFixture(GridType.Hexagon)]
     [TestFixture(GridType.Square)]
     [TestFixture(GridType.Triangle)]
+    [TestFixture(GridType.OctagonSquare)]
     public class GeometryTests
     {
         private readonly GridType gridType;
