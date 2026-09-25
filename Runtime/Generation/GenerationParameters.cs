@@ -1,6 +1,7 @@
 using System;
 using CRG.Core;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace CRG.Generation
 {
@@ -17,10 +18,14 @@ namespace CRG.Generation
 
         private const float MinDoorClearance = 0.01f;
 
-        [Header("Hexagon Settings")]
-        [Tooltip("Size of each hexagon edge in world units")]
+        [Header("Grid Settings")]
+        [Tooltip("Shape of the cells rooms are built from")]
+        public GridType GridType = GridType.Hexagon;
+
+        [Tooltip("Edge length of each cell in world units")]
         [Range(1f, 50f)]
-        public float HexSize = 10f;
+        [FormerlySerializedAs("CellSize")]
+        public float CellSize = 10f;
 
         [Header("Wall Settings")]
         [Tooltip("Height of walls in world units")]
@@ -31,7 +36,7 @@ namespace CRG.Generation
         [Range(0.5f, 20f)]
         public float DoorHeight = 2.5f;
 
-        [Tooltip("Door width as a fraction of the hexagon edge length (0.2 = 1/5 of the edge)")]
+        [Tooltip("Door width as a fraction of the cell edge length (0.2 = 1/5 of the edge)")]
         [Range(0.05f, 1f)]
         public float DoorWidthRatio = 0.2f;
 
@@ -47,13 +52,15 @@ namespace CRG.Generation
         public float CeilingChance = 1f;
 
         [Header("Room Size Settings")]
-        [Tooltip("Minimum number of hexagons per room")]
+        [Tooltip("Minimum number of cells per room")]
         [Range(1, 20)]
-        public int MinHexagonsPerRoom = 1;
+        [FormerlySerializedAs("MinCellsPerRoom")]
+        public int MinCellsPerRoom = 1;
 
-        [Tooltip("Maximum number of hexagons per room")]
+        [Tooltip("Maximum number of cells per room")]
         [Range(1, 20)]
-        public int MaxHexagonsPerRoom = 5;
+        [FormerlySerializedAs("MaxCellsPerRoom")]
+        public int MaxCellsPerRoom = 5;
 
         [Header("Generation Settings")]
         [Tooltip("Target number of rooms to generate")]
@@ -61,7 +68,7 @@ namespace CRG.Generation
         public int TargetRoomCount = 10;
 
         [Tooltip("Starting position for the first room")]
-        public AxialCoord StartPosition = new AxialCoord(0, 0);
+        public CellCoord StartPosition = new CellCoord(0, 0);
 
         [Header("Connection Constraints")]
         [Tooltip("Minimum connections each room must have to other rooms")]
@@ -121,22 +128,22 @@ namespace CRG.Generation
         }
 
         public GenerationParameters(
-            float hexSize,
-            int minHexPerRoom,
-            int maxHexPerRoom,
+            float cellSize,
+            int minCellsPerRoom,
+            int maxCellsPerRoom,
             int targetRoomCount)
         {
-            HexSize = hexSize;
-            MinHexagonsPerRoom = minHexPerRoom;
-            MaxHexagonsPerRoom = maxHexPerRoom;
+            CellSize = cellSize;
+            MinCellsPerRoom = minCellsPerRoom;
+            MaxCellsPerRoom = maxCellsPerRoom;
             TargetRoomCount = targetRoomCount;
         }
 
         public bool Validate(out string errorMessage)
         {
-            if (HexSize <= 0)
+            if (CellSize <= 0)
             {
-                errorMessage = "HexSize must be greater than 0";
+                errorMessage = "CellSize must be greater than 0";
                 return false;
             }
 
@@ -158,15 +165,15 @@ namespace CRG.Generation
                 return false;
             }
 
-            if (WallThickness < 0f || WallThickness > HexSize * MaxWallThicknessRatio)
+            if (WallThickness < 0f || WallThickness > CellSize * MaxWallThicknessRatio)
             {
-                errorMessage = $"WallThickness must be between 0 and {HexSize * MaxWallThicknessRatio:F2} (a quarter of HexSize)";
+                errorMessage = $"WallThickness must be between 0 and {CellSize * MaxWallThicknessRatio:F2} (a quarter of CellSize)";
                 return false;
             }
 
             // Wall corners move the inner face of a wall inwards along the edge; the door opening must stay clear of them.
             if (WallThickness > 0f &&
-                (HexSize - HexSize * DoorWidthRatio) / 2f < WallThickness * HexMath.ThickWallCornerInsetPerThickness + MinDoorClearance)
+                (CellSize - CellSize * DoorWidthRatio) / 2f < WallThickness * GridTopology.Get(GridType).ThickWallCornerInsetPerThickness + MinDoorClearance)
             {
                 errorMessage = "Doors are too wide for this WallThickness; lower DoorWidthRatio or WallThickness";
                 return false;
@@ -178,15 +185,15 @@ namespace CRG.Generation
                 return false;
             }
 
-            if (MinHexagonsPerRoom <= 0)
+            if (MinCellsPerRoom <= 0)
             {
-                errorMessage = "MinHexagonsPerRoom must be at least 1";
+                errorMessage = "MinCellsPerRoom must be at least 1";
                 return false;
             }
 
-            if (MaxHexagonsPerRoom < MinHexagonsPerRoom)
+            if (MaxCellsPerRoom < MinCellsPerRoom)
             {
-                errorMessage = "MaxHexagonsPerRoom must be greater than or equal to MinHexagonsPerRoom";
+                errorMessage = "MaxCellsPerRoom must be greater than or equal to MinCellsPerRoom";
                 return false;
             }
 
@@ -252,17 +259,18 @@ namespace CRG.Generation
         {
             return new GenerationParameters
             {
-                HexSize = 10f,
+                GridType = GridType.Hexagon,
+                CellSize = 10f,
                 WallHeight = 3f,
                 DoorHeight = 2.5f,
                 DoorWidthRatio = 0.2f,
                 WallThickness = 0f,
                 AddCeiling = false,
                 CeilingChance = 1f,
-                MinHexagonsPerRoom = 1,
-                MaxHexagonsPerRoom = 5,
+                MinCellsPerRoom = 1,
+                MaxCellsPerRoom = 5,
                 TargetRoomCount = 10,
-                StartPosition = new AxialCoord(0, 0),
+                StartPosition = new CellCoord(0, 0),
                 MinConnectionsPerRoom = 1,
                 MaxConnectionsPerRoom = 6,
                 ReserveConnectionForGrowth = true,
@@ -282,8 +290,8 @@ namespace CRG.Generation
         public override string ToString()
         {
             return $"GenerationParameters: {TargetRoomCount} rooms, " +
-                   $"{MinHexagonsPerRoom}-{MaxHexagonsPerRoom} hexagons per room, " +
-                   $"HexSize={HexSize}, Seed={RandomSeed}";
+                   $"{MinCellsPerRoom}-{MaxCellsPerRoom} cells per room, " +
+                   $"{GridType} CellSize={CellSize}, Seed={RandomSeed}";
         }
     }
 }

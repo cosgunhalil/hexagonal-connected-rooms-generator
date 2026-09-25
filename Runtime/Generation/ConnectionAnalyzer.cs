@@ -22,20 +22,20 @@ namespace CRG.Generation
         }
 
         // Internal edges become NoWall, every other edge becomes Wall. Doors are added separately.
-        public void FlagRoomEdges(HexGrid grid, Room room)
+        public void FlagRoomEdges(CellGrid grid, Room room)
         {
             if (room == null)
                 throw new ArgumentNullException(nameof(room));
 
-            foreach (AxialCoord cellCoord in room.Cells)
+            foreach (CellCoord cellCoord in room.Cells)
             {
-                HexCell cell = grid.GetCell(cellCoord);
+                GridCell cell = grid.GetCell(cellCoord);
                 if (cell == null)
                     continue;
 
-                for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+                for (int edgeIndex = 0; edgeIndex < cell.EdgeCount; edgeIndex++)
                 {
-                    HexCell neighborCell = grid.GetCell(cellCoord.GetNeighbor(edgeIndex));
+                    GridCell neighborCell = grid.GetNeighbor(cellCoord, edgeIndex);
                     bool sameRoom = neighborCell != null && neighborCell.RoomID == room.RoomID;
                     cell.SetEdgeFlag(edgeIndex, sameRoom ? WallFlag.NoWall : WallFlag.Wall);
                 }
@@ -43,16 +43,17 @@ namespace CRG.Generation
         }
 
         // Rooms adjacent to the given cells, keyed by room ID, with the shared edges seen from the given cells.
-        public Dictionary<int, List<EdgeConnection>> FindSharedEdges(HexGrid grid, IEnumerable<AxialCoord> cells, int ownRoomID)
+        public Dictionary<int, List<EdgeConnection>> FindSharedEdges(CellGrid grid, IEnumerable<CellCoord> cells, int ownRoomID)
         {
             Dictionary<int, List<EdgeConnection>> sharedEdges = new Dictionary<int, List<EdgeConnection>>();
 
-            foreach (AxialCoord cellCoord in cells)
+            foreach (CellCoord cellCoord in cells)
             {
-                for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+                int edgeCount = grid.Topology.GetEdgeCount(cellCoord);
+                for (int edgeIndex = 0; edgeIndex < edgeCount; edgeIndex++)
                 {
-                    AxialCoord neighborCoord = cellCoord.GetNeighbor(edgeIndex);
-                    HexCell neighborCell = grid.GetCell(neighborCoord);
+                    CellCoord neighborCoord = grid.Topology.GetNeighbor(cellCoord, edgeIndex);
+                    GridCell neighborCell = grid.GetCell(neighborCoord);
 
                     if (neighborCell == null || !neighborCell.IsPartOfRoom() || neighborCell.RoomID == ownRoomID)
                         continue;
@@ -65,7 +66,7 @@ namespace CRG.Generation
 
                     edges.Add(new EdgeConnection(
                         cellCoord, edgeIndex,
-                        neighborCoord, HexDirection.GetOppositeDirection(edgeIndex)));
+                        neighborCoord, grid.Topology.GetNeighborEdge(cellCoord, edgeIndex)));
                 }
             }
 
@@ -75,7 +76,7 @@ namespace CRG.Generation
         // Connects the room to up to maxNewConnections adjacent rooms (bounded by the max-connection
         // limit), visiting neighbors in random order. After the first new door, each further door is
         // made with probability extraConnectionChance. Returns the number of new connections.
-        public int ConnectToNeighbors(HexGrid grid, Room room, System.Random random,
+        public int ConnectToNeighbors(CellGrid grid, Room room, System.Random random,
             int maxNewConnections = int.MaxValue, float extraConnectionChance = 1f)
         {
             Dictionary<int, List<EdgeConnection>> sharedEdges = FindSharedEdges(grid, room.Cells, room.RoomID);
@@ -108,7 +109,7 @@ namespace CRG.Generation
         }
 
         // Adds connections until the room has at least minConnections, if adjacent rooms allow it.
-        public int EnsureMinimumConnections(HexGrid grid, Room room, int minConnections, System.Random random)
+        public int EnsureMinimumConnections(CellGrid grid, Room room, int minConnections, System.Random random)
         {
             int missing = minConnections - room.GetConnectionCount();
             return missing > 0 ? ConnectToNeighbors(grid, room, random, missing) : 0;
@@ -136,7 +137,7 @@ namespace CRG.Generation
             return true;
         }
 
-        private static void CreateDoor(HexGrid grid, Room roomA, Room roomB, EdgeConnection edge)
+        private static void CreateDoor(CellGrid grid, Room roomA, Room roomB, EdgeConnection edge)
         {
             grid.GetCell(edge.CellA).SetEdgeFlag(edge.EdgeIndexA, WallFlag.HasDoor);
             grid.GetCell(edge.CellB).SetEdgeFlag(edge.EdgeIndexB, WallFlag.HasDoor);

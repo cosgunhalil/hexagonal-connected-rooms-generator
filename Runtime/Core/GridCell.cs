@@ -20,24 +20,24 @@ namespace CRG.Core
     }
 
     [Serializable]
-    public class HexCell
+    public class GridCell
     {
-        private const int HexagonEdgeCount = 6;
-
-        public AxialCoord Coordinate { get; private set; }
+        public CellCoord Coordinate { get; private set; }
         public CellState State { get; set; }
         public int RoomID { get; set; }
 
         private WallFlag[] edgeFlags;
 
-        public HexCell(AxialCoord coordinate)
+        public int EdgeCount => edgeFlags.Length;
+
+        public GridCell(CellCoord coordinate, int edgeCount)
         {
             Coordinate = coordinate;
             State = CellState.Empty;
             RoomID = -1;
-            edgeFlags = new WallFlag[HexagonEdgeCount];
-            
-            for (int i = 0; i < HexagonEdgeCount; i++)
+            edgeFlags = new WallFlag[edgeCount];
+
+            for (int i = 0; i < edgeCount; i++)
             {
                 edgeFlags[i] = WallFlag.None;
             }
@@ -75,7 +75,7 @@ namespace CRG.Core
 
         public void ClearAllEdgeFlags()
         {
-            for (int i = 0; i < HexagonEdgeCount; i++)
+            for (int i = 0; i < EdgeCount; i++)
             {
                 edgeFlags[i] = WallFlag.None;
             }
@@ -95,13 +95,13 @@ namespace CRG.Core
 
         private void ValidateEdgeIndex(int edgeIndex)
         {
-            if (edgeIndex < 0 || edgeIndex >= HexagonEdgeCount)
-                throw new ArgumentOutOfRangeException(nameof(edgeIndex), $"Edge index must be between 0 and {HexagonEdgeCount - 1}");
+            if (edgeIndex < 0 || edgeIndex >= EdgeCount)
+                throw new ArgumentOutOfRangeException(nameof(edgeIndex), $"Edge index must be between 0 and {EdgeCount - 1}");
         }
 
         public override string ToString()
         {
-            return $"HexCell[{Coordinate}] State:{State} RoomID:{RoomID}";
+            return $"GridCell[{Coordinate}] State:{State} RoomID:{RoomID}";
         }
     }
 }

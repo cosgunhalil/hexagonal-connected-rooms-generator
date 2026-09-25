@@ -49,9 +49,9 @@ namespace CRG.Editor
         {
             GenerationParameters parameters = new GenerationParameters
             {
-                HexSize = 10f,
-                MinHexagonsPerRoom = 1,
-                MaxHexagonsPerRoom = 3,
+                CellSize = 10f,
+                MinCellsPerRoom = 1,
+                MaxCellsPerRoom = 3,
                 TargetRoomCount = 5,
                 RandomSeed = Random.Range(0, 999999)
             };
@@ -64,9 +64,9 @@ namespace CRG.Editor
         {
             GenerationParameters parameters = new GenerationParameters
             {
-                HexSize = 10f,
-                MinHexagonsPerRoom = 2,
-                MaxHexagonsPerRoom = 5,
+                CellSize = 10f,
+                MinCellsPerRoom = 2,
+                MaxCellsPerRoom = 5,
                 TargetRoomCount = 10,
                 RandomSeed = Random.Range(0, 999999)
             };
@@ -79,9 +79,9 @@ namespace CRG.Editor
         {
             GenerationParameters parameters = new GenerationParameters
             {
-                HexSize = 10f,
-                MinHexagonsPerRoom = 3,
-                MaxHexagonsPerRoom = 7,
+                CellSize = 10f,
+                MinCellsPerRoom = 3,
+                MaxCellsPerRoom = 7,
                 TargetRoomCount = 20,
                 RandomSeed = Random.Range(0, 999999)
             };

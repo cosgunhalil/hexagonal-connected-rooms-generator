@@ -22,7 +22,8 @@ namespace CRG.Editor
             EditorGUILayout.LabelField("Level Summary", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Rooms", data.Rooms.Count.ToString());
             EditorGUILayout.LabelField("Doors", data.Doors.Count.ToString());
-            EditorGUILayout.LabelField("Hex Size", data.HexSize.ToString("F2"));
+            EditorGUILayout.LabelField("Grid Type", data.GridType.ToString());
+            EditorGUILayout.LabelField("Cell Size", data.CellSize.ToString("F2"));
 
             CRGLevelData.RoomData startRoom = data.StartRoom;
             CRGLevelData.RoomData endRoom = data.EndRoom;

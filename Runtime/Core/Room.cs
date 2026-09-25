@@ -6,7 +6,7 @@ namespace CRG.Core
     public class Room
     {
         public int RoomID { get; private set; }
-        public List<AxialCoord> Cells { get; private set; }
+        public List<CellCoord> Cells { get; private set; }
         public Dictionary<int, SharedWallData> Connections { get; private set; }
 
         // Whether this room is covered when ceilings are enabled (see GenerationParameters.CeilingChance).
@@ -15,11 +15,11 @@ namespace CRG.Core
         public Room(int roomID)
         {
             RoomID = roomID;
-            Cells = new List<AxialCoord>();
+            Cells = new List<CellCoord>();
             Connections = new Dictionary<int, SharedWallData>();
         }
 
-        public void AddCell(AxialCoord coord)
+        public void AddCell(CellCoord coord)
         {
             if (!Cells.Contains(coord))
             {
@@ -27,12 +27,12 @@ namespace CRG.Core
             }
         }
 
-        public void RemoveCell(AxialCoord coord)
+        public void RemoveCell(CellCoord coord)
         {
             Cells.Remove(coord);
         }
 
-        public bool ContainsCell(AxialCoord coord)
+        public bool ContainsCell(CellCoord coord)
         {
             return Cells.Contains(coord);
         }
@@ -42,7 +42,7 @@ namespace CRG.Core
             return Cells.Count;
         }
 
-        public void AddConnection(int neighborRoomID, AxialCoord cellA, int edgeA, AxialCoord cellB, int edgeB)
+        public void AddConnection(int neighborRoomID, CellCoord cellA, int edgeA, CellCoord cellB, int edgeB)
         {
             if (!Connections.ContainsKey(neighborRoomID))
             {
@@ -87,13 +87,13 @@ namespace CRG.Core
             return GetConnectionCount() >= minConnections;
         }
 
-        public IEnumerable<AxialCoord> GetBorderCells(HexGrid grid)
+        public IEnumerable<CellCoord> GetBorderCells(CellGrid grid)
         {
-            HashSet<AxialCoord> borderCells = new HashSet<AxialCoord>();
+            HashSet<CellCoord> borderCells = new HashSet<CellCoord>();
 
             foreach (var coord in Cells)
             {
-                foreach (var neighbor in coord.GetAllNeighbors())
+                foreach (var neighbor in grid.Topology.GetNeighbors(coord))
                 {
                     if (!Cells.Contains(neighbor))
                     {
@@ -106,13 +106,13 @@ namespace CRG.Core
             return borderCells;
         }
 
-        public IEnumerable<AxialCoord> GetExternalNeighbors(HexGrid grid)
+        public IEnumerable<CellCoord> GetExternalNeighbors(CellGrid grid)
         {
-            HashSet<AxialCoord> externalNeighbors = new HashSet<AxialCoord>();
+            HashSet<CellCoord> externalNeighbors = new HashSet<CellCoord>();
 
             foreach (var coord in Cells)
             {
-                foreach (var neighbor in coord.GetAllNeighbors())
+                foreach (var neighbor in grid.Topology.GetNeighbors(coord))
                 {
                     if (!Cells.Contains(neighbor))
                     {

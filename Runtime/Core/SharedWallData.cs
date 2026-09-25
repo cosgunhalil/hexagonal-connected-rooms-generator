@@ -13,7 +13,7 @@ namespace CRG.Core
             SharedEdges = new List<EdgeConnection>();
         }
 
-        public void AddSharedEdge(AxialCoord cellA, int edgeIndexA, AxialCoord cellB, int edgeIndexB)
+        public void AddSharedEdge(CellCoord cellA, int edgeIndexA, CellCoord cellB, int edgeIndexB)
         {
             SharedEdges.Add(new EdgeConnection(cellA, edgeIndexA, cellB, edgeIndexB));
         }
@@ -31,12 +31,12 @@ namespace CRG.Core
 
     public struct EdgeConnection
     {
-        public AxialCoord CellA;
+        public CellCoord CellA;
         public int EdgeIndexA;
-        public AxialCoord CellB;
+        public CellCoord CellB;
         public int EdgeIndexB;
 
-        public EdgeConnection(AxialCoord cellA, int edgeIndexA, AxialCoord cellB, int edgeIndexB)
+        public EdgeConnection(CellCoord cellA, int edgeIndexA, CellCoord cellB, int edgeIndexB)
         {
             CellA = cellA;
             EdgeIndexA = edgeIndexA;

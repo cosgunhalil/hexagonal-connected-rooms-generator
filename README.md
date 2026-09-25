@@ -53,14 +53,15 @@ Hexagons are pointy-top in the XZ plane, and +Z is north.
 
 | Group | Parameter | Default | Description |
 |---|---|---|---|
-| Hexagon | Hex Size | 10 | Edge length of one hexagon in world units. |
+| Grid | Grid Type | Hexagon | Shape of the cells rooms are built from. Currently only hexagons; square, triangle and octagon + square grids are planned. |
+| | Cell Size | 10 | Edge length of one cell in world units. |
 | Walls | Wall Height | 3 | Height of walls. |
 | | Door Height | 2.5 | Height of door openings (at most Wall Height). |
 | | Door Width Ratio | 0.2 | Door width as a fraction of the edge length (0.2 = 1/5 of the edge). |
-| | Wall Thickness | 0 | 0 builds zero-thickness, double-sided walls. Above 0 builds solid walls: a wall between two rooms is split half and half across the edge, and an outer wall lies fully inside its room. At most a quarter of Hex Size, and doors must stay clear of the wall corners. |
+| | Wall Thickness | 0 | 0 builds zero-thickness, double-sided walls. Above 0 builds solid walls: a wall between two rooms is split half and half across the edge, and an outer wall lies fully inside its room. At most a quarter of Cell Size, and doors must stay clear of the wall corners. |
 | | Add Ceiling | Off | Covers rooms with a ceiling at wall height. Ceilings face down, so they are visible from inside and you can still look into the level from above. |
 | | Ceiling Chance | 1 | With Add Ceiling, the chance that each room gets a ceiling (1 = every room, 0 = none), for example to mix indoor and open-air rooms. Rooms are picked after the layout is final, so changing it never changes a seed's rooms or doors. |
-| Room size | Min / Max Hexagons Per Room | 1 / 5 | Room size range, in hexagons. |
+| Room size | Min / Max Cells Per Room | 1 / 5 | Room size range, in cells. |
 | Generation | Target Room Count | 10 | Number of rooms to generate. |
 | | Start Position | (0, 0) | Axial coordinate of the first room. |
 | Connections | Min / Max Connections Per Room | 1 / 6 | Connection limits per room. Min is best effort: rooms on the edge of the level may have too few neighbors, and a warning is logged. |
@@ -128,7 +129,7 @@ public class LevelBootstrap : MonoBehaviour
 For more control, run the steps separately:
 
 ```csharp
-HexGrid grid = new CRGGenerator().Generate(parameters);          // logical layout only
+CellGrid grid = new CRGGenerator().Generate(parameters);         // logical layout only
 LevelGeometryGenerator geometry = LevelGeometryGenerator.FromParameters(grid, parameters);
 geometry.SetMaterials(floorMaterial, wallMaterial);
 geometry.SetDoorPrefab(doorPrefab);
@@ -158,6 +159,16 @@ Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → T
 - With thick walls, outer corners where a room wraps around its neighbor are chamfered rather than rounded.
 - Min Connections Per Room is best effort for rooms at the edge of the level.
 - The level is built around the origin; move the generated GameObject to place it elsewhere.
+
+## Migrating to the grid abstraction (next release)
+
+The generator now works on a general cell grid, so hexagon-specific names changed. Serialized data is migrated automatically: parameter assets, generator components and saved levels keep their values, and hex levels are generated exactly as before.
+
+- `HexGrid` / `HexCell` / `AxialCoord` became `CellGrid` / `GridCell` / `CellCoord` (fields `x`, `y`, `variant`).
+- `GenerationParameters.HexSize` / `MinHexagonsPerRoom` / `MaxHexagonsPerRoom` became `CellSize` / `MinCellsPerRoom` / `MaxCellsPerRoom`, and `GridType` was added.
+- Neighbors, positions and distances come from the grid topology: `grid.Topology.GetNeighbor(cell, edge)`, `grid.GetCellCenter(cell)`, `grid.Topology.GetDistance(a, b)` instead of `AxialCoord.GetNeighbor`, `ToWorldPosition` and `DistanceTo`.
+- `CRGLevelData.HexSize` became `CellSize`; `GridType` and `Topology` were added.
+- `HexGeometry` became `CellGeometry`, and its methods take the topology as first argument.
 
 ## Migrating from 0.1.x (Hexagonal Connected Rooms Generator / HRCG)
 

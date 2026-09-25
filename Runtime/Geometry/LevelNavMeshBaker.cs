@@ -62,7 +62,7 @@ namespace CRG.Geometry
                 return false;
             }
 
-            float doorWidth = parameters.HexSize * parameters.DoorWidthRatio;
+            float doorWidth = parameters.CellSize * parameters.DoorWidthRatio;
             float agentDiameter = settings.agentRadius * 2f;
 
             if (doorWidth <= agentDiameter)

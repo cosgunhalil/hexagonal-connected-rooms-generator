@@ -8,9 +8,9 @@ namespace CRG.Generation
 {
     public class RoomShapeGenerator
     {
-        public List<AxialCoord> GenerateRoomShape(
-            HexGrid grid,
-            AxialCoord seedCell,
+        public List<CellCoord> GenerateRoomShape(
+            CellGrid grid,
+            CellCoord seedCell,
             int targetCellCount,
             int minAcceptableCount,
             System.Random random)
@@ -21,9 +21,9 @@ namespace CRG.Generation
             if (minAcceptableCount <= 0)
                 minAcceptableCount = 1;
 
-            List<AxialCoord> result = new List<AxialCoord>();
-            HashSet<AxialCoord> visited = new HashSet<AxialCoord>();
-            Queue<AxialCoord> frontier = new Queue<AxialCoord>();
+            List<CellCoord> result = new List<CellCoord>();
+            HashSet<CellCoord> visited = new HashSet<CellCoord>();
+            Queue<CellCoord> frontier = new Queue<CellCoord>();
 
             if (!IsCellValid(grid, seedCell))
             {
@@ -38,7 +38,7 @@ namespace CRG.Generation
 
             while (result.Count < targetCellCount && frontier.Count > 0)
             {
-                AxialCoord nextCell = SelectFromFrontier(frontier, random);
+                CellCoord nextCell = SelectFromFrontier(frontier, random);
 
                 if (IsCellValid(grid, nextCell) && !visited.Contains(nextCell))
                 {
@@ -57,9 +57,9 @@ namespace CRG.Generation
             return result;
         }
 
-        private bool IsCellValid(HexGrid grid, AxialCoord coord)
+        private bool IsCellValid(CellGrid grid, CellCoord coord)
         {
-            HexCell cell = grid.GetCell(coord);
+            GridCell cell = grid.GetCell(coord);
             
             if (cell == null)
                 return true;
@@ -68,12 +68,12 @@ namespace CRG.Generation
         }
 
         private void AddValidNeighborsToFrontier(
-            HexGrid grid,
-            AxialCoord coord,
-            HashSet<AxialCoord> visited,
-            Queue<AxialCoord> frontier)
+            CellGrid grid,
+            CellCoord coord,
+            HashSet<CellCoord> visited,
+            Queue<CellCoord> frontier)
         {
-            foreach (AxialCoord neighbor in coord.GetAllNeighbors())
+            foreach (CellCoord neighbor in grid.Topology.GetNeighbors(coord))
             {
                 if (!visited.Contains(neighbor) && IsCellValid(grid, neighbor))
                 {
@@ -85,17 +85,17 @@ namespace CRG.Generation
             }
         }
 
-        private AxialCoord SelectFromFrontier(Queue<AxialCoord> frontier, System.Random random)
+        private CellCoord SelectFromFrontier(Queue<CellCoord> frontier, System.Random random)
         {
             if (frontier.Count == 1)
                 return frontier.Dequeue();
 
             int randomIndex = random.Next(frontier.Count);
-            List<AxialCoord> tempList = frontier.ToList();
-            AxialCoord selected = tempList[randomIndex];
+            List<CellCoord> tempList = frontier.ToList();
+            CellCoord selected = tempList[randomIndex];
             
-            Queue<AxialCoord> newFrontier = new Queue<AxialCoord>();
-            foreach (AxialCoord coord in tempList)
+            Queue<CellCoord> newFrontier = new Queue<CellCoord>();
+            foreach (CellCoord coord in tempList)
             {
                 if (!coord.Equals(selected))
                 {
@@ -112,20 +112,20 @@ namespace CRG.Generation
             return selected;
         }
 
-        public List<AxialCoord> GenerateRoomShapeWithRetry(
-            HexGrid grid,
-            AxialCoord seedCell,
+        public List<CellCoord> GenerateRoomShapeWithRetry(
+            CellGrid grid,
+            CellCoord seedCell,
             int targetCellCount,
             int minAcceptableCount,
             int maxRetries,
             System.Random random)
         {
-            List<AxialCoord> bestResult = null;
+            List<CellCoord> bestResult = null;
             int bestCount = 0;
 
             for (int attempt = 0; attempt < maxRetries; attempt++)
             {
-                List<AxialCoord> result = GenerateRoomShape(
+                List<CellCoord> result = GenerateRoomShape(
                     grid,
                     seedCell,
                     targetCellCount,
@@ -145,7 +145,7 @@ namespace CRG.Generation
                     return result;
             }
 
-            return bestResult ?? new List<AxialCoord>();
+            return bestResult ?? new List<CellCoord>();
         }
     }
 }

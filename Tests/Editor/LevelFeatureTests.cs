@@ -61,7 +61,7 @@ namespace CRG.Tests
                 Assert.That(room.SpawnPoint, Is.Not.Null, $"room {room.RoomID}");
                 Assert.That(data.GetSpawnPoint(room.RoomID), Is.EqualTo(room.SpawnPoint));
 
-                AxialCoord cell = AxialCoord.FromWorldPosition(room.SpawnPoint.localPosition, data.HexSize);
+                CellCoord cell = data.Topology.GetCellAt(room.SpawnPoint.localPosition, data.CellSize);
                 Assert.That(room.Cells, Does.Contain(cell), $"room {room.RoomID}");
             }
         }
@@ -132,7 +132,7 @@ namespace CRG.Tests
             for (int seed = 0; seed < Seeds; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new CRGGenerator().Generate(parameters);
+                CellGrid grid = new CRGGenerator().Generate(parameters);
                 int connections = grid.GetAllRooms().Sum(room => room.GetConnectionCount()) / 2;
 
                 Assert.That(connections, Is.EqualTo(grid.RoomCount - 1), $"seed {seed}");
@@ -221,7 +221,7 @@ namespace CRG.Tests
             Assert.That(LevelNavMeshBaker.DoorsFitAgent(parameters, out _), Is.True, "default doors fit the default agent");
 
             parameters.DoorWidthRatio = 0.05f;
-            parameters.HexSize = 10f;
+            parameters.CellSize = 10f;
             Assert.That(LevelNavMeshBaker.DoorsFitAgent(parameters, out _), Is.False);
         }
 
@@ -236,7 +236,7 @@ namespace CRG.Tests
             for (int seed = 0; seed < Seeds; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new CRGGenerator().Generate(parameters);
+                CellGrid grid = new CRGGenerator().Generate(parameters);
                 total += grid.GetAllRooms().Sum(room => room.GetConnectionCount()) / 2 - (grid.RoomCount - 1);
             }
             return (double)total / Seeds;
@@ -249,8 +249,8 @@ namespace CRG.Tests
             for (int seed = 0; seed < Seeds; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new CRGGenerator().Generate(parameters);
-                total += grid.GetAllRooms().SelectMany(room => room.Cells).Max(cell => cell.DistanceTo(parameters.StartPosition));
+                CellGrid grid = new CRGGenerator().Generate(parameters);
+                total += grid.GetAllRooms().SelectMany(room => room.Cells).Max(cell => grid.Topology.GetDistance(cell, parameters.StartPosition));
             }
             return (double)total / Seeds;
         }

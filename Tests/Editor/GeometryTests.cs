@@ -14,7 +14,7 @@ namespace CRG.Tests
         private readonly List<Object> created = new List<Object>();
 
         private GenerationParameters parameters;
-        private HexGrid grid;
+        private CellGrid grid;
 
         [SetUp]
         public void SetUp()
@@ -141,11 +141,11 @@ namespace CRG.Tests
             {
                 Assert.That(grid.GetCell(door.CellA).RoomID, Is.EqualTo(door.RoomA));
                 Assert.That(grid.GetCell(door.CellA).GetEdgeFlag(door.EdgeA), Is.EqualTo(WallFlag.HasDoor));
-                Assert.That(grid.GetCell(door.CellA.GetNeighbor(door.EdgeA)).RoomID, Is.EqualTo(door.RoomB));
+                Assert.That(grid.GetNeighbor(door.CellA, door.EdgeA).RoomID, Is.EqualTo(door.RoomB));
 
                 (Vector3 start, Vector3 end) = data.GetDoorOpeningLocal(door);
                 Assert.That(Vector3.Distance(start, end),
-                    Is.EqualTo(parameters.HexSize * parameters.DoorWidthRatio).Within(1e-3f));
+                    Is.EqualTo(parameters.CellSize * parameters.DoorWidthRatio).Within(1e-3f));
             }
         }
 
@@ -156,7 +156,7 @@ namespace CRG.Tests
 
             foreach (CRGLevelData.RoomData room in data.Rooms)
             {
-                AxialCoord anchorCell = AxialCoord.FromWorldPosition(data.GetRoomAnchorLocalPosition(room), data.HexSize);
+                CellCoord anchorCell = data.Topology.GetCellAt(data.GetRoomAnchorLocalPosition(room), data.CellSize);
                 Assert.That(room.Cells, Does.Contain(anchorCell), $"room {room.RoomID}");
             }
         }
@@ -177,14 +177,14 @@ namespace CRG.Tests
         // One face per floor, two per wall quad (double-sided), counting each shared edge once.
         private int ExpectedFaceCount(bool includeFloors, bool includeWalls)
         {
-            int doorSegments = HexGeometry.GetDoorWallSegments(
-                new AxialCoord(0, 0), 0, parameters.HexSize, parameters.WallHeight,
-                HexMath.CalculateDoorWidth(parameters.HexSize, parameters.DoorWidthRatio), parameters.DoorHeight).Count;
+            int doorSegments = CellGeometry.GetDoorWallSegments(
+                grid.Topology, new CellCoord(0, 0), 0, parameters.CellSize, parameters.WallHeight,
+                CellGeometry.CalculateDoorWidth(parameters.CellSize, parameters.DoorWidthRatio), parameters.DoorHeight).Count;
 
             int faces = 0;
-            HashSet<(AxialCoord, AxialCoord)> countedEdges = new HashSet<(AxialCoord, AxialCoord)>();
+            HashSet<(CellCoord, CellCoord)> countedEdges = new HashSet<(CellCoord, CellCoord)>();
 
-            foreach (HexCell cell in grid.GetAllCells())
+            foreach (GridCell cell in grid.GetAllCells())
             {
                 if (!cell.IsPartOfRoom())
                     continue;
@@ -195,9 +195,9 @@ namespace CRG.Tests
                 if (!includeWalls)
                     continue;
 
-                for (int edge = 0; edge < 6; edge++)
+                for (int edge = 0; edge < cell.EdgeCount; edge++)
                 {
-                    AxialCoord neighbor = cell.Coordinate.GetNeighbor(edge);
+                    CellCoord neighbor = grid.Topology.GetNeighbor(cell.Coordinate, edge);
                     if (countedEdges.Contains((neighbor, cell.Coordinate)))
                         continue;
                     countedEdges.Add((cell.Coordinate, neighbor));

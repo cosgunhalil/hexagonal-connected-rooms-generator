@@ -14,8 +14,9 @@ namespace CRG.Generation
         private RoomShapeGenerator shapeGenerator;
         private ConnectionAnalyzer connectionAnalyzer;
         private System.Random random;
+        private IGridTopology topology;
 
-        public HexGrid Generate(GenerationParameters parameters)
+        public CellGrid Generate(GenerationParameters parameters)
         {
             if (parameters == null)
                 throw new ArgumentNullException(nameof(parameters));
@@ -31,7 +32,8 @@ namespace CRG.Generation
             this.shapeGenerator = new RoomShapeGenerator();
             this.connectionAnalyzer = new ConnectionAnalyzer(parameters.MaxConnectionsPerRoom);
 
-            HexGrid grid = new HexGrid(parameters.HexSize);
+            this.topology = GridTopology.Get(parameters.GridType);
+            CellGrid grid = new CellGrid(topology, parameters.CellSize);
 
             Debug.Log($"Starting generation with parameters: {parameters}");
 
@@ -42,7 +44,7 @@ namespace CRG.Generation
                 return grid;
             }
 
-            HashSet<AxialCoord> frontier = new HashSet<AxialCoord>();
+            HashSet<CellCoord> frontier = new HashSet<CellCoord>();
             UpdateFrontier(grid, seedRoom, frontier);
 
             int iterations = 0;
@@ -54,7 +56,7 @@ namespace CRG.Generation
             {
                 iterations++;
 
-                AxialCoord seedPosition = SelectFromFrontier(frontier);
+                CellCoord seedPosition = SelectFromFrontier(frontier);
 
                 Room newRoom = TryCreateRoom(grid, seedPosition);
 
@@ -83,11 +85,11 @@ namespace CRG.Generation
             return grid;
         }
 
-        private Room CreateSeedRoom(HexGrid grid)
+        private Room CreateSeedRoom(CellGrid grid)
         {
             Debug.Log($"Creating seed room at {parameters.StartPosition}");
 
-            List<AxialCoord> cells = GenerateRoomCells(grid, parameters.StartPosition);
+            List<CellCoord> cells = GenerateRoomCells(grid, parameters.StartPosition);
             if (cells == null)
             {
                 Debug.LogError($"Failed to generate seed room at {parameters.StartPosition}");
@@ -101,9 +103,9 @@ namespace CRG.Generation
             return room;
         }
 
-        private Room TryCreateRoom(HexGrid grid, AxialCoord seedPosition)
+        private Room TryCreateRoom(CellGrid grid, CellCoord seedPosition)
         {
-            List<AxialCoord> cells = GenerateRoomCells(grid, seedPosition);
+            List<CellCoord> cells = GenerateRoomCells(grid, seedPosition);
             if (cells == null)
                 return null;
 
@@ -122,23 +124,23 @@ namespace CRG.Generation
             return room;
         }
 
-        // Returns null when the shape cannot reach MinHexagonsPerRoom.
-        private List<AxialCoord> GenerateRoomCells(HexGrid grid, AxialCoord seedPosition)
+        // Returns null when the shape cannot reach MinCellsPerRoom.
+        private List<CellCoord> GenerateRoomCells(CellGrid grid, CellCoord seedPosition)
         {
-            int roomSize = random.Next(parameters.MinHexagonsPerRoom, parameters.MaxHexagonsPerRoom + 1);
+            int roomSize = random.Next(parameters.MinCellsPerRoom, parameters.MaxCellsPerRoom + 1);
 
-            List<AxialCoord> cells = shapeGenerator.GenerateRoomShapeWithRetry(
+            List<CellCoord> cells = shapeGenerator.GenerateRoomShapeWithRetry(
                 grid,
                 seedPosition,
                 roomSize,
-                parameters.MinHexagonsPerRoom,
+                parameters.MinCellsPerRoom,
                 parameters.MaxRetriesPerRoom,
                 random);
 
-            return cells.Count >= parameters.MinHexagonsPerRoom ? cells : null;
+            return cells.Count >= parameters.MinCellsPerRoom ? cells : null;
         }
 
-        private bool CanConnectToExistingRoom(HexGrid grid, List<AxialCoord> cells)
+        private bool CanConnectToExistingRoom(CellGrid grid, List<CellCoord> cells)
         {
             foreach (int neighborID in connectionAnalyzer.FindSharedEdges(grid, cells, -1).Keys)
             {
@@ -150,11 +152,11 @@ namespace CRG.Generation
             return false;
         }
 
-        private Room PlaceRoom(HexGrid grid, List<AxialCoord> cells)
+        private Room PlaceRoom(CellGrid grid, List<CellCoord> cells)
         {
             Room room = grid.CreateRoom();
 
-            foreach (AxialCoord coord in cells)
+            foreach (CellCoord coord in cells)
             {
                 grid.AssignCellToRoom(coord, room.RoomID);
             }
@@ -165,15 +167,15 @@ namespace CRG.Generation
         }
 
         // The frontier holds every empty cell touching the structure built so far.
-        private void UpdateFrontier(HexGrid grid, Room room, HashSet<AxialCoord> frontier)
+        private void UpdateFrontier(CellGrid grid, Room room, HashSet<CellCoord> frontier)
         {
-            foreach (AxialCoord cellCoord in room.Cells)
+            foreach (CellCoord cellCoord in room.Cells)
             {
                 frontier.Remove(cellCoord);
 
-                foreach (AxialCoord neighborCoord in cellCoord.GetAllNeighbors())
+                foreach (CellCoord neighborCoord in grid.Topology.GetNeighbors(cellCoord))
                 {
-                    HexCell neighborCell = grid.GetCell(neighborCoord);
+                    GridCell neighborCell = grid.GetCell(neighborCoord);
                     if (neighborCell == null || neighborCell.State == CellState.Empty)
                     {
                         frontier.Add(neighborCoord);
@@ -184,7 +186,7 @@ namespace CRG.Generation
 
         // Runs after the layout is final, so CeilingChance never changes which rooms and doors a seed produces.
         // At CeilingChance 1 no random numbers are drawn.
-        private void AssignCeilings(HexGrid grid)
+        private void AssignCeilings(CellGrid grid)
         {
             if (!parameters.AddCeiling || parameters.CeilingChance >= 1f)
                 return;
@@ -199,7 +201,7 @@ namespace CRG.Generation
         }
 
         // Rooms placed early may end up below MinConnectionsPerRoom; add doors to adjacent rooms where limits allow.
-        private void EnsureMinimumConnections(HexGrid grid)
+        private void EnsureMinimumConnections(CellGrid grid)
         {
             List<Room> rooms = new List<Room>(grid.GetAllRooms());
             rooms.Sort((a, b) => a.RoomID.CompareTo(b.RoomID));
@@ -213,19 +215,19 @@ namespace CRG.Generation
         // Tournament selection: LayoutBias sets how many random frontier cells compete, and the one
         // farthest from (bias > 0) or closest to (bias < 0) the start position wins.
         // With bias 0 this is a single uniform pick.
-        private AxialCoord SelectFromFrontier(HashSet<AxialCoord> frontier)
+        private CellCoord SelectFromFrontier(HashSet<CellCoord> frontier)
         {
-            List<AxialCoord> cells = frontier.ToList();
-            AxialCoord best = cells[random.Next(cells.Count)];
+            List<CellCoord> cells = frontier.ToList();
+            CellCoord best = cells[random.Next(cells.Count)];
 
             int candidates = 1 + (int)Math.Round(Math.Abs(parameters.LayoutBias) * (MaxLayoutCandidates - 1));
             bool preferFar = parameters.LayoutBias > 0f;
 
             for (int i = 1; i < candidates; i++)
             {
-                AxialCoord candidate = cells[random.Next(cells.Count)];
-                int candidateDistance = candidate.DistanceTo(parameters.StartPosition);
-                int bestDistance = best.DistanceTo(parameters.StartPosition);
+                CellCoord candidate = cells[random.Next(cells.Count)];
+                int candidateDistance = topology.GetDistance(candidate, parameters.StartPosition);
+                int bestDistance = topology.GetDistance(best, parameters.StartPosition);
 
                 if (preferFar ? candidateDistance > bestDistance : candidateDistance < bestDistance)
                     best = candidate;
@@ -234,7 +236,7 @@ namespace CRG.Generation
             return best;
         }
 
-        private void ValidateGeneration(HexGrid grid)
+        private void ValidateGeneration(CellGrid grid)
         {
             Debug.Log("Validating generation...");
 

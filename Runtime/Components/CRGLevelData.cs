@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 using CRG.Core;
 
 namespace CRG.Runtime
@@ -20,7 +21,7 @@ namespace CRG.Runtime
         public class RoomData
         {
             public int RoomID;
-            public List<AxialCoord> Cells = new List<AxialCoord>();
+            public List<CellCoord> Cells = new List<CellCoord>();
             public List<int> ConnectedRoomIDs = new List<int>();
 
             [Tooltip("Number of doors on the shortest path from the start room")]
@@ -37,7 +38,7 @@ namespace CRG.Runtime
         {
             public int RoomA;
             public int RoomB;
-            public AxialCoord CellA;
+            public CellCoord CellA;
             public int EdgeA;
             public Transform DoorObject;
         }
@@ -49,14 +50,17 @@ namespace CRG.Runtime
         public bool showConnections = true;
         public bool showRoomRoles = true;
 
-        [SerializeField, HideInInspector] private float hexSize;
+        [SerializeField, HideInInspector] private GridType gridType = GridType.Hexagon;
+        [SerializeField, HideInInspector, FormerlySerializedAs("hexSize")] private float cellSize;
         [SerializeField, HideInInspector] private float wallHeight;
         [SerializeField, HideInInspector] private float doorHeight;
         [SerializeField, HideInInspector] private float doorWidthRatio;
         [SerializeField, HideInInspector] private List<RoomData> rooms = new List<RoomData>();
         [SerializeField, HideInInspector] private List<DoorData> doors = new List<DoorData>();
 
-        public float HexSize => hexSize;
+        public float CellSize => cellSize;
+        public GridType GridType => gridType;
+        public IGridTopology Topology => GridTopology.Get(gridType);
         public float WallHeight => wallHeight;
         public float DoorHeight => doorHeight;
         public IReadOnlyList<RoomData> Rooms => rooms;
@@ -65,9 +69,10 @@ namespace CRG.Runtime
         public RoomData StartRoom => rooms.Find(room => room.Role == RoomRole.Start);
         public RoomData EndRoom => rooms.Find(room => room.Role == RoomRole.End);
 
-        public void Initialize(HexGrid grid, float wallHeight, float doorHeight, float doorWidthRatio, bool ceilingsEnabled = false)
+        public void Initialize(CellGrid grid, float wallHeight, float doorHeight, float doorWidthRatio, bool ceilingsEnabled = false)
         {
-            hexSize = grid.HexSize;
+            gridType = grid.Topology.Type;
+            cellSize = grid.CellSize;
             this.wallHeight = wallHeight;
             this.doorHeight = doorHeight;
             this.doorWidthRatio = doorWidthRatio;
@@ -162,9 +167,9 @@ namespace CRG.Runtime
             return rooms.Find(room => room.RoomID == roomID);
         }
 
-        public Vector3 GetCellLocalPosition(AxialCoord cell)
+        public Vector3 GetCellLocalPosition(CellCoord cell)
         {
-            return cell.ToWorldPosition(hexSize);
+            return Topology.GetCellCenter(cell, cellSize);
         }
 
         // Center of the room cell closest to the room's centroid, so the anchor always lies inside the room.
@@ -174,12 +179,12 @@ namespace CRG.Runtime
                 return Vector3.zero;
 
             Vector3 centroid = Vector3.zero;
-            foreach (AxialCoord cell in room.Cells)
+            foreach (CellCoord cell in room.Cells)
                 centroid += GetCellLocalPosition(cell);
             centroid /= room.Cells.Count;
 
             Vector3 best = GetCellLocalPosition(room.Cells[0]);
-            foreach (AxialCoord cell in room.Cells)
+            foreach (CellCoord cell in room.Cells)
             {
                 Vector3 position = GetCellLocalPosition(cell);
                 if ((position - centroid).sqrMagnitude < (best - centroid).sqrMagnitude)
@@ -192,21 +197,21 @@ namespace CRG.Runtime
         // Center of the door opening at floor level.
         public Vector3 GetDoorCenterLocal(DoorData door)
         {
-            return GetCellLocalPosition(door.CellA) + HexMath.GetEdgeCenter(door.EdgeA, hexSize);
+            return GetCellLocalPosition(door.CellA) + Topology.GetEdgeCenterOffset(door.CellA, door.EdgeA, cellSize);
         }
 
         // Horizontal direction through the door, pointing from RoomA into RoomB.
         public Vector3 GetDoorForwardLocal(DoorData door)
         {
-            return HexMath.GetEdgeNormal(door.EdgeA);
+            return Topology.GetEdgeNormal(door.CellA, door.EdgeA);
         }
 
         // Endpoints of the door opening at floor level.
         public (Vector3, Vector3) GetDoorOpeningLocal(DoorData door)
         {
             Vector3 center = GetDoorCenterLocal(door);
-            (Vector3 start, Vector3 end) = HexMath.GetEdgeVertices(door.EdgeA, hexSize);
-            Vector3 halfWidth = (end - start).normalized * (HexMath.CalculateDoorWidth(hexSize, doorWidthRatio) / 2f);
+            (Vector3 start, Vector3 end) = Topology.GetEdgeOffsets(door.CellA, door.EdgeA, cellSize);
+            Vector3 halfWidth = (end - start).normalized * (cellSize * doorWidthRatio / 2f);
 
             return (center - halfWidth, center + halfWidth);
         }

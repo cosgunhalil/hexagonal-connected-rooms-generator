@@ -90,9 +90,13 @@ namespace CRG.Editor
         {
             EditorGUILayout.LabelField("Basic Settings", EditorStyles.boldLabel);
 
-            parameters.HexSize = EditorGUILayout.Slider(
-                new GUIContent("Hex Size", "Size of each hexagon edge in world units"),
-                parameters.HexSize, 1f, 50f);
+            parameters.GridType = (GridType)EditorGUILayout.EnumPopup(
+                new GUIContent("Grid Type", "Shape of the cells rooms are built from"),
+                parameters.GridType);
+
+            parameters.CellSize = EditorGUILayout.Slider(
+                new GUIContent("Cell Size", "Edge length of each cell in world units"),
+                parameters.CellSize, 1f, 50f);
 
             parameters.WallHeight = EditorGUILayout.Slider(
                 new GUIContent("Wall Height", "Height of walls in world units"),
@@ -103,14 +107,14 @@ namespace CRG.Editor
                 parameters.DoorHeight, 0.5f, parameters.WallHeight);
 
             parameters.DoorWidthRatio = EditorGUILayout.Slider(
-                new GUIContent("Door Width (edge ratio)", "Door width as a fraction of the hexagon edge length (0.2 = 1/5)"),
+                new GUIContent("Door Width (edge ratio)", "Door width as a fraction of the cell edge length (0.2 = 1/5)"),
                 parameters.DoorWidthRatio, 0.05f, 1f);
 
-            EditorGUILayout.LabelField(" ", $"Door width: {parameters.HexSize * parameters.DoorWidthRatio:F2} units", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(" ", $"Door width: {parameters.CellSize * parameters.DoorWidthRatio:F2} units", EditorStyles.miniLabel);
 
             parameters.WallThickness = EditorGUILayout.Slider(
                 new GUIContent("Wall Thickness", "0 = zero-thickness double-sided walls; above 0 = solid walls. Walls between rooms are split half and half, outer walls are fully inside the room"),
-                parameters.WallThickness, 0f, parameters.HexSize * GenerationParameters.MaxWallThicknessRatio);
+                parameters.WallThickness, 0f, parameters.CellSize * GenerationParameters.MaxWallThicknessRatio);
 
             parameters.AddCeiling = EditorGUILayout.Toggle(
                 new GUIContent("Add Ceiling", "Cover rooms with a ceiling at wall height (visible from inside only)"),
@@ -134,17 +138,17 @@ namespace CRG.Editor
         {
             EditorGUILayout.LabelField("Room Size Settings", EditorStyles.boldLabel);
 
-            parameters.MinHexagonsPerRoom = EditorGUILayout.IntSlider(
-                new GUIContent("Min Hexagons/Room", "Minimum hexagons per room"),
-                parameters.MinHexagonsPerRoom, 1, 20);
+            parameters.MinCellsPerRoom = EditorGUILayout.IntSlider(
+                new GUIContent("Min Cells/Room", "Minimum cells per room"),
+                parameters.MinCellsPerRoom, 1, 20);
 
-            parameters.MaxHexagonsPerRoom = EditorGUILayout.IntSlider(
-                new GUIContent("Max Hexagons/Room", "Maximum hexagons per room"),
-                parameters.MaxHexagonsPerRoom, 1, 20);
+            parameters.MaxCellsPerRoom = EditorGUILayout.IntSlider(
+                new GUIContent("Max Cells/Room", "Maximum cells per room"),
+                parameters.MaxCellsPerRoom, 1, 20);
 
-            if (parameters.MaxHexagonsPerRoom < parameters.MinHexagonsPerRoom)
+            if (parameters.MaxCellsPerRoom < parameters.MinCellsPerRoom)
             {
-                parameters.MaxHexagonsPerRoom = parameters.MinHexagonsPerRoom;
+                parameters.MaxCellsPerRoom = parameters.MinCellsPerRoom;
             }
         }
 
@@ -273,9 +277,10 @@ namespace CRG.Editor
 
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.PrefixLabel("Start Position");
-                parameters.StartPosition = new AxialCoord(
-                    EditorGUILayout.IntField(parameters.StartPosition.columnIndex, GUILayout.Width(50)),
-                    EditorGUILayout.IntField(parameters.StartPosition.rowIndex, GUILayout.Width(50))
+                parameters.StartPosition = new CellCoord(
+                    EditorGUILayout.IntField(parameters.StartPosition.x, GUILayout.Width(50)),
+                    EditorGUILayout.IntField(parameters.StartPosition.y, GUILayout.Width(50)),
+                    parameters.StartPosition.variant
                 );
                 EditorGUILayout.EndHorizontal();
 
@@ -400,7 +405,7 @@ namespace CRG.Editor
             float startTime = Time.realtimeSinceStartup;
 
             CRGGenerator generator = new CRGGenerator();
-            HexGrid grid = generator.Generate(parameters);
+            CellGrid grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geometryGenerator = LevelGeometryGenerator.FromParameters(grid, parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);

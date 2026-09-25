@@ -33,8 +33,8 @@ namespace CRG.Tests
         {
             GenerationParameters parameters = new GenerationParameters
             {
-                MinHexagonsPerRoom = minHex,
-                MaxHexagonsPerRoom = maxHex,
+                MinCellsPerRoom = minHex,
+                MaxCellsPerRoom = maxHex,
                 TargetRoomCount = rooms,
                 MinConnectionsPerRoom = minConnections,
                 MaxConnectionsPerRoom = maxConnections,
@@ -51,7 +51,7 @@ namespace CRG.Tests
             for (int seed = 0; seed < SeedsPerCase; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new CRGGenerator().Generate(parameters);
+                CellGrid grid = new CRGGenerator().Generate(parameters);
                 AssertLevelIsValid(grid, parameters, $"seed {seed}");
             }
         }
@@ -131,19 +131,19 @@ namespace CRG.Tests
             Assert.That(parameters.Validate(out _), Is.False);
         }
 
-        private static void AssertLevelIsValid(HexGrid grid, GenerationParameters parameters, string context)
+        private static void AssertLevelIsValid(CellGrid grid, GenerationParameters parameters, string context)
         {
             List<Room> rooms = grid.GetAllRooms().ToList();
             Assert.That(rooms, Is.Not.Empty, context);
 
-            HashSet<(AxialCoord, int)> doorEdges = new HashSet<(AxialCoord, int)>();
+            HashSet<(CellCoord, int)> doorEdges = new HashSet<(CellCoord, int)>();
 
             foreach (Room room in rooms)
             {
                 string roomContext = $"{context}, room {room.RoomID}";
 
-                Assert.That(room.Cells.Count, Is.InRange(parameters.MinHexagonsPerRoom, parameters.MaxHexagonsPerRoom), roomContext);
-                Assert.That(IsContiguous(room), Is.True, $"{roomContext}: cells are not contiguous");
+                Assert.That(room.Cells.Count, Is.InRange(parameters.MinCellsPerRoom, parameters.MaxCellsPerRoom), roomContext);
+                Assert.That(IsContiguous(room, grid.Topology), Is.True, $"{roomContext}: cells are not contiguous");
                 Assert.That(room.GetConnectionCount(), Is.LessThanOrEqualTo(parameters.MaxConnectionsPerRoom), roomContext);
 
                 foreach (KeyValuePair<int, SharedWallData> connection in room.Connections)
@@ -158,13 +158,13 @@ namespace CRG.Tests
 
             foreach (Room room in rooms)
             {
-                foreach (AxialCoord coord in room.Cells)
+                foreach (CellCoord coord in room.Cells)
                 {
-                    HexCell cell = grid.GetCell(coord);
+                    GridCell cell = grid.GetCell(coord);
 
-                    for (int edge = 0; edge < 6; edge++)
+                    for (int edge = 0; edge < cell.EdgeCount; edge++)
                     {
-                        HexCell neighbor = grid.GetCell(coord.GetNeighbor(edge));
+                        GridCell neighbor = grid.GetNeighbor(coord, edge);
                         bool neighborIsRoom = neighbor != null && neighbor.IsPartOfRoom();
 
                         WallFlag expected =
@@ -176,7 +176,7 @@ namespace CRG.Tests
 
                         if (neighborIsRoom)
                         {
-                            Assert.That(neighbor.GetEdgeFlag(HexDirection.GetOppositeDirection(edge)), Is.EqualTo(expected),
+                            Assert.That(neighbor.GetEdgeFlag(grid.Topology.GetNeighborEdge(coord, edge)), Is.EqualTo(expected),
                                 $"{context}, cell {coord}, edge {edge}: flags must agree from both sides");
                         }
                     }
@@ -186,7 +186,7 @@ namespace CRG.Tests
             Assert.That(CountReachableRooms(grid, rooms), Is.EqualTo(rooms.Count), $"{context}: every room must be reachable through doors");
         }
 
-        private static int CountReachableRooms(HexGrid grid, List<Room> rooms)
+        private static int CountReachableRooms(CellGrid grid, List<Room> rooms)
         {
             HashSet<int> reached = new HashSet<int> { rooms.Min(r => r.RoomID) };
             Queue<int> queue = new Queue<int>(reached);
@@ -203,15 +203,15 @@ namespace CRG.Tests
             return reached.Count;
         }
 
-        private static bool IsContiguous(Room room)
+        private static bool IsContiguous(Room room, IGridTopology topology)
         {
-            HashSet<AxialCoord> cells = new HashSet<AxialCoord>(room.Cells);
-            HashSet<AxialCoord> reached = new HashSet<AxialCoord> { room.Cells[0] };
-            Queue<AxialCoord> queue = new Queue<AxialCoord>(reached);
+            HashSet<CellCoord> cells = new HashSet<CellCoord>(room.Cells);
+            HashSet<CellCoord> reached = new HashSet<CellCoord> { room.Cells[0] };
+            Queue<CellCoord> queue = new Queue<CellCoord>(reached);
 
             while (queue.Count > 0)
             {
-                foreach (AxialCoord neighbor in queue.Dequeue().GetAllNeighbors())
+                foreach (CellCoord neighbor in topology.GetNeighbors(queue.Dequeue()))
                 {
                     if (cells.Contains(neighbor) && reached.Add(neighbor))
                         queue.Enqueue(neighbor);
@@ -232,14 +232,14 @@ namespace CRG.Tests
             return (double)total / SeedsPerCase;
         }
 
-        private static string Fingerprint(HexGrid grid)
+        private static string Fingerprint(CellGrid grid)
         {
             StringBuilder builder = new StringBuilder();
 
             foreach (Room room in grid.GetAllRooms().OrderBy(r => r.RoomID))
             {
                 builder.Append(room.RoomID).Append(':');
-                foreach (AxialCoord coord in room.Cells)
+                foreach (CellCoord coord in room.Cells)
                     builder.Append(coord).Append(',');
                 foreach (int neighbor in room.Connections.Keys.OrderBy(id => id))
                     builder.Append('>').Append(neighbor);

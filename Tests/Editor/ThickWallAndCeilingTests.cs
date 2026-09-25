@@ -40,14 +40,14 @@ namespace CRG.Tests
         [Test]
         public void SingleCellRoom_WallTopsFormInsetRing()
         {
-            parameters.MinHexagonsPerRoom = 1;
-            parameters.MaxHexagonsPerRoom = 1;
+            parameters.MinCellsPerRoom = 1;
+            parameters.MaxCellsPerRoom = 1;
             parameters.TargetRoomCount = 1;
 
             List<Triangle> tops = GetTriangles(Generate()).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: true)).ToList();
 
             // All six walls are exterior (full thickness), so the tops fill the ring between the hex and a hex inset by t.
-            float outer = parameters.HexSize;
+            float outer = parameters.CellSize;
             float inner = outer - 2f * parameters.WallThickness / Mathf.Sqrt(3f);
             float expected = HexArea(outer) - HexArea(inner);
 
@@ -65,7 +65,7 @@ namespace CRG.Tests
             for (int seed = 0; seed < 10; seed++)
             {
                 parameters.RandomSeed = seed;
-                HexGrid grid = new CRGGenerator().Generate(parameters);
+                CellGrid grid = new CRGGenerator().Generate(parameters);
                 GameObject level = Track(LevelGeometryGenerator.FromParameters(grid, parameters).GenerateLevel());
 
                 List<Triangle> tops = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: true)).ToList();
@@ -97,7 +97,7 @@ namespace CRG.Tests
                     $"door {door.RoomA}-{door.RoomB} is blocked");
 
                 // 35% of the edge length from the door center is solid wall, well clear of the corners.
-                Vector3 solid = center - alongEdge * (parameters.HexSize * 0.35f);
+                Vector3 solid = center - alongEdge * (parameters.CellSize * 0.35f);
                 Assert.That(Physics.Linecast(solid - forward * reach, solid + forward * reach), Is.True,
                     $"wall next to door {door.RoomA}-{door.RoomB} is open");
             }
@@ -113,7 +113,7 @@ namespace CRG.Tests
             int cells = level.GetComponent<CRGLevelData>().Rooms.Sum(room => room.Cells.Count);
 
             List<Triangle> ceiling = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).ToList();
-            float expected = cells * HexArea(parameters.HexSize);
+            float expected = cells * HexArea(parameters.CellSize);
 
             Assert.That(ceiling.Sum(t => t.Area), Is.EqualTo(expected).Within(expected * 1e-3f));
         }
@@ -165,7 +165,7 @@ namespace CRG.Tests
                 List<CRGLevelData.RoomData> rooms = level.GetComponent<CRGLevelData>().Rooms.ToList();
 
                 int coveredCells = rooms.Where(room => room.HasCeiling).Sum(room => room.Cells.Count);
-                float expected = coveredCells * HexArea(parameters.HexSize);
+                float expected = coveredCells * HexArea(parameters.CellSize);
                 float actual = GetTriangles(level).Where(t => IsHorizontalAt(t, parameters.WallHeight, up: false)).Sum(t => t.Area);
                 Assert.That(actual, Is.EqualTo(expected).Within(Mathf.Max(expected, 1f) * 1e-3f), $"seed {seed}");
 
@@ -188,8 +188,8 @@ namespace CRG.Tests
                 string layoutWithAllCeilings = LayoutFingerprint(new CRGGenerator().Generate(parameters), includeCeilings: false);
 
                 parameters.CeilingChance = 0.4f;
-                HexGrid first = new CRGGenerator().Generate(parameters);
-                HexGrid second = new CRGGenerator().Generate(parameters);
+                CellGrid first = new CRGGenerator().Generate(parameters);
+                CellGrid second = new CRGGenerator().Generate(parameters);
 
                 Assert.That(LayoutFingerprint(first, includeCeilings: false), Is.EqualTo(layoutWithAllCeilings), $"seed {seed}: layout changed");
                 Assert.That(LayoutFingerprint(first, includeCeilings: true), Is.EqualTo(LayoutFingerprint(second, includeCeilings: true)), $"seed {seed}: ceilings differ");
@@ -208,7 +208,7 @@ namespace CRG.Tests
         [Test]
         public void Validate_RejectsTooThickWalls()
         {
-            parameters.WallThickness = parameters.HexSize * GenerationParameters.MaxWallThicknessRatio + 0.1f;
+            parameters.WallThickness = parameters.CellSize * GenerationParameters.MaxWallThicknessRatio + 0.1f;
             Assert.That(parameters.Validate(out _), Is.False);
         }
 
@@ -260,24 +260,24 @@ namespace CRG.Tests
         // Samples points in every room cell at wall-top height: at most one top may cover a point, the band along
         // each wall (away from corners) must be covered, the corners of walled edges must be covered, and nothing
         // may reach much farther than the wall thickness.
-        private void AssertWallTopsCoverWallBands(HexGrid grid, List<Triangle> tops, string context)
+        private void AssertWallTopsCoverWallBands(CellGrid grid, List<Triangle> tops, string context)
         {
             float t = parameters.WallThickness;
-            float size = parameters.HexSize;
-            float innerRadius = HexMath.GetInnerRadius(size);
+            float size = parameters.CellSize;
             float doorWidth = size * parameters.DoorWidthRatio;
             bool doorReachesTop = parameters.DoorHeight >= parameters.WallHeight;
             System.Random random = new System.Random(1);
 
-            foreach (HexCell cell in grid.GetAllCells().Where(c => c.IsPartOfRoom()))
+            foreach (GridCell cell in grid.GetAllCells().Where(c => c.IsPartOfRoom()))
             {
-                Vector3 center = cell.Coordinate.ToWorldPosition(size);
+                Vector3 center = grid.GetCellCenter(cell.Coordinate);
+                float innerRadius = grid.Topology.GetInnerRadius(cell.Coordinate, size);
                 List<Triangle> nearby = tops.Where(tri => tri.IsNear(center, size * 1.05f)).ToList();
 
                 for (int sample = 0; sample < 60; sample++)
                 {
                     Vector3 point = center + new Vector3((float)(random.NextDouble() * 2 - 1) * size, 0f, (float)(random.NextDouble() * 2 - 1) * size);
-                    bool inside = Enumerable.Range(0, 6).All(e => Vector3.Dot(point - center, HexMath.GetEdgeNormal(e)) < innerRadius - 0.02f);
+                    bool inside = Enumerable.Range(0, cell.EdgeCount).All(e => Vector3.Dot(point - center, grid.Topology.GetEdgeNormal(cell.Coordinate, e)) < innerRadius - 0.02f);
                     if (!inside)
                         continue;
 
@@ -288,23 +288,23 @@ namespace CRG.Tests
                     bool anyWall = false;
                     float nearestWall = float.MaxValue;
 
-                    for (int edge = 0; edge < 6; edge++)
+                    for (int edge = 0; edge < cell.EdgeCount; edge++)
                     {
                         WallFlag flag = cell.GetEdgeFlag(edge);
                         if (!flag.HasFlag(WallFlag.Wall) && !flag.HasFlag(WallFlag.HasDoor))
                             continue;
 
-                        HexCell neighbor = grid.GetCell(cell.Coordinate.GetNeighbor(edge));
+                        GridCell neighbor = grid.GetNeighbor(cell.Coordinate, edge);
                         bool exterior = neighbor == null || !neighbor.IsPartOfRoom();
                         float depth = exterior ? t : t / 2f;
                         anyWall = true;
 
-                        (Vector3 start, Vector3 end) = HexMath.GetEdgeVertices(edge, size);
+                        (Vector3 start, Vector3 end) = grid.Topology.GetEdgeOffsets(cell.Coordinate, edge, size);
                         start += center;
                         end += center;
                         Vector3 direction = (end - start).normalized;
                         float along = Vector3.Dot(point - start, direction);
-                        float inward = -Vector3.Dot(point - start, HexMath.GetEdgeNormal(edge));
+                        float inward = -Vector3.Dot(point - start, grid.Topology.GetEdgeNormal(cell.Coordinate, edge));
                         nearestWall = Mathf.Min(nearestWall, DistanceToSegmentXZ(point, start, end));
 
                         bool inOpening = doorReachesTop && flag.HasFlag(WallFlag.HasDoor) &&
@@ -337,14 +337,14 @@ namespace CRG.Tests
             return obj;
         }
 
-        private static string LayoutFingerprint(HexGrid grid, bool includeCeilings)
+        private static string LayoutFingerprint(CellGrid grid, bool includeCeilings)
         {
             System.Text.StringBuilder builder = new System.Text.StringBuilder();
 
             foreach (Room room in grid.GetAllRooms().OrderBy(r => r.RoomID))
             {
                 builder.Append(room.RoomID).Append(':');
-                foreach (AxialCoord cell in room.Cells)
+                foreach (CellCoord cell in room.Cells)
                     builder.Append(cell).Append(',');
                 foreach (KeyValuePair<int, SharedWallData> connection in room.Connections.OrderBy(c => c.Key))
                     builder.Append('>').Append(connection.Key).Append('@').Append(connection.Value.SharedEdges[0]);

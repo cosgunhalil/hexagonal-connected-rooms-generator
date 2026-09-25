@@ -8,7 +8,7 @@ namespace CRG.Geometry
 {
     public class LevelGeometryGenerator
     {
-        private readonly HexGrid grid;
+        private readonly CellGrid grid;
         private readonly float wallHeight;
         private readonly float doorHeight;
         private readonly float doorWidthRatio;
@@ -23,7 +23,7 @@ namespace CRG.Geometry
         private GenerationParameters options;
 
         // wallThickness 0 builds zero-thickness double-sided walls; above 0 builds solid walls of that thickness.
-        public LevelGeometryGenerator(HexGrid grid, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f,
+        public LevelGeometryGenerator(CellGrid grid, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f,
             float wallThickness = 0f, bool addCeiling = false)
         {
             this.grid = grid;
@@ -34,7 +34,7 @@ namespace CRG.Geometry
             this.addCeiling = addCeiling;
         }
 
-        public static LevelGeometryGenerator FromParameters(HexGrid grid, GenerationParameters parameters)
+        public static LevelGeometryGenerator FromParameters(CellGrid grid, GenerationParameters parameters)
         {
             return new LevelGeometryGenerator(grid, parameters.WallHeight, parameters.DoorHeight, parameters.DoorWidthRatio,
                 parameters.WallThickness, parameters.AddCeiling)
@@ -69,10 +69,10 @@ namespace CRG.Geometry
 
             foreach (Room room in grid.GetAllRooms())
             {
-                List<HexCell> roomCells = new List<HexCell>();
-                foreach (AxialCoord coord in room.Cells)
+                List<GridCell> roomCells = new List<GridCell>();
+                foreach (CellCoord coord in room.Cells)
                 {
-                    HexCell cell = grid.GetCell(coord);
+                    GridCell cell = grid.GetCell(coord);
                     if (cell != null && cell.IsPartOfRoom())
                     {
                         roomCells.Add(cell);
@@ -103,7 +103,7 @@ namespace CRG.Geometry
             GameObject doorPrefab = null, Material ceilingMaterial = null)
         {
             CRGGenerator generator = new CRGGenerator();
-            HexGrid grid = generator.Generate(parameters);
+            CellGrid grid = generator.Generate(parameters);
 
             LevelGeometryGenerator geometryGenerator = FromParameters(grid, parameters);
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial, ceilingMaterial);
@@ -199,10 +199,10 @@ namespace CRG.Geometry
             return child;
         }
 
-        private List<HexCell> GetRoomCells()
+        private List<GridCell> GetRoomCells()
         {
-            List<HexCell> roomCells = new List<HexCell>();
-            foreach (HexCell cell in grid.GetAllCells())
+            List<GridCell> roomCells = new List<GridCell>();
+            foreach (GridCell cell in grid.GetAllCells())
             {
                 if (cell.IsPartOfRoom())
                 {
@@ -212,11 +212,11 @@ namespace CRG.Geometry
             return roomCells;
         }
 
-        private GameObject BuildMesh(string name, List<HexCell> cells, bool includeFloors, bool includeWalls, bool includeCeiling)
+        private GameObject BuildMesh(string name, List<GridCell> cells, bool includeFloors, bool includeWalls, bool includeCeiling)
         {
-            ProBuilderMeshBuilder builder = new ProBuilderMeshBuilder(grid.HexSize, wallHeight, doorHeight, doorWidthRatio);
+            ProBuilderMeshBuilder builder = new ProBuilderMeshBuilder(grid.Topology, grid.CellSize, wallHeight, doorHeight, doorWidthRatio);
 
-            foreach (HexCell cell in cells)
+            foreach (GridCell cell in cells)
             {
                 if (includeFloors)
                 {
@@ -246,11 +246,11 @@ namespace CRG.Geometry
             return builder.Build(name);
         }
 
-        private void AddCellWalls(ProBuilderMeshBuilder builder, HexCell cell)
+        private void AddCellWalls(ProBuilderMeshBuilder builder, GridCell cell)
         {
-            for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+            for (int edgeIndex = 0; edgeIndex < cell.EdgeCount; edgeIndex++)
             {
-                HexCell neighbor = grid.GetCell(cell.Coordinate.GetNeighbor(edgeIndex));
+                GridCell neighbor = grid.GetNeighbor(cell.Coordinate, edgeIndex);
                 bool neighborIsRoom = neighbor != null && neighbor.IsPartOfRoom();
 
                 // An edge between two room cells is seen from both sides; only one of them builds it.
@@ -260,7 +260,7 @@ namespace CRG.Geometry
                 WallFlag flag = cell.GetEdgeFlag(edgeIndex);
                 if (neighborIsRoom)
                 {
-                    flag |= neighbor.GetEdgeFlag(HexDirection.GetOppositeDirection(edgeIndex));
+                    flag |= neighbor.GetEdgeFlag(grid.Topology.GetNeighborEdge(cell.Coordinate, edgeIndex));
                 }
 
                 if (flag.HasFlag(WallFlag.HasDoor))
@@ -276,39 +276,42 @@ namespace CRG.Geometry
 
         // Every room cell builds its own side of each of its walls: half the thickness towards another room,
         // the full thickness (plus an outer face) towards empty space. Doors are always between rooms.
-        private void AddCellThickWalls(ProBuilderMeshBuilder builder, HexCell cell)
+        private void AddCellThickWalls(ProBuilderMeshBuilder builder, GridCell cell)
         {
-            float[] depths = new float[6];
-            bool[] exterior = new bool[6];
+            float[] depths = new float[cell.EdgeCount];
+            bool[] exterior = new bool[cell.EdgeCount];
 
-            for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+            for (int edgeIndex = 0; edgeIndex < cell.EdgeCount; edgeIndex++)
             {
                 WallFlag flag = cell.GetEdgeFlag(edgeIndex);
                 if (!flag.HasFlag(WallFlag.Wall) && !flag.HasFlag(WallFlag.HasDoor))
                     continue;
 
-                HexCell neighbor = grid.GetCell(cell.Coordinate.GetNeighbor(edgeIndex));
+                GridCell neighbor = grid.GetNeighbor(cell.Coordinate, edgeIndex);
                 exterior[edgeIndex] = neighbor == null || !neighbor.IsPartOfRoom();
                 depths[edgeIndex] = exterior[edgeIndex] ? wallThickness : wallThickness / 2f;
             }
 
-            for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+            for (int edgeIndex = 0; edgeIndex < cell.EdgeCount; edgeIndex++)
             {
                 if (depths[edgeIndex] <= 0f)
                     continue;
 
-                ThickWallStrip strip = HexGeometry.GetThickWallStrip(cell.Coordinate, edgeIndex, grid.HexSize, depths);
+                ThickWallStrip strip = CellGeometry.GetThickWallStrip(grid.Topology, cell.Coordinate, edgeIndex, grid.CellSize, depths);
                 bool hasDoor = cell.GetEdgeFlag(edgeIndex).HasFlag(WallFlag.HasDoor) && !exterior[edgeIndex];
                 builder.AddThickWall(strip, hasDoor, exterior[edgeIndex], wallMaterial);
             }
         }
 
-        private static bool OwnsSharedEdge(AxialCoord cell, AxialCoord neighbor)
+        private static bool OwnsSharedEdge(CellCoord cell, CellCoord neighbor)
         {
-            if (cell.columnIndex != neighbor.columnIndex)
-                return cell.columnIndex < neighbor.columnIndex;
+            if (cell.x != neighbor.x)
+                return cell.x < neighbor.x;
 
-            return cell.rowIndex < neighbor.rowIndex;
+            if (cell.y != neighbor.y)
+                return cell.y < neighbor.y;
+
+            return cell.variant < neighbor.variant;
         }
     }
 }

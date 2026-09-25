@@ -11,7 +11,8 @@ namespace CRG.Geometry
     {
         private const float MinSize = 0.001f;
 
-        private readonly float hexSize;
+        private readonly IGridTopology topology;
+        private readonly float cellSize;
         private readonly float wallHeight;
         private readonly float doorHeight;
         private readonly float doorWidthRatio;
@@ -23,42 +24,46 @@ namespace CRG.Geometry
 
         public bool IsEmpty => faces.Count == 0;
 
-        public ProBuilderMeshBuilder(float hexSize, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f, float floorHeight = 0f)
+        public ProBuilderMeshBuilder(IGridTopology topology, float cellSize, float wallHeight = 3f, float doorHeight = 2.5f,
+            float doorWidthRatio = 0.2f, float floorHeight = 0f)
         {
-            this.hexSize = hexSize;
+            this.topology = topology;
+            this.cellSize = cellSize;
             this.wallHeight = wallHeight;
             this.doorHeight = doorHeight;
             this.doorWidthRatio = doorWidthRatio;
             this.floorHeight = floorHeight;
         }
 
-        public void AddFloor(AxialCoord coordinate, Material material)
+        public void AddFloor(CellCoord coordinate, Material material)
         {
             int baseIndex = positions.Count;
-            positions.AddRange(HexGeometry.GetFloorVertices(coordinate, hexSize, floorHeight));
+            Vector3[] vertices = CellGeometry.GetFloorVertices(topology, coordinate, cellSize, floorHeight);
+            positions.AddRange(vertices);
 
-            // Clockwise when seen from above, so the floor faces +Y.
-            int[] indices = new int[18];
-            for (int i = 0; i < 6; i++)
+            // Fan from the center, clockwise when seen from above, so the floor faces +Y.
+            int corners = vertices.Length - 1;
+            int[] indices = new int[corners * 3];
+            for (int i = 0; i < corners; i++)
             {
                 indices[i * 3] = baseIndex;
-                indices[i * 3 + 1] = baseIndex + 1 + (i + 1) % 6;
+                indices[i * 3 + 1] = baseIndex + 1 + (i + 1) % corners;
                 indices[i * 3 + 2] = baseIndex + 1 + i;
             }
 
             AddFace(indices, material);
         }
 
-        public void AddWall(AxialCoord coordinate, int edgeIndex, Material material)
+        public void AddWall(CellCoord coordinate, int edgeIndex, Material material)
         {
-            AddDoubleSidedQuad(HexGeometry.GetWallSegment(coordinate, edgeIndex, hexSize, wallHeight, floorHeight), material);
+            AddDoubleSidedQuad(CellGeometry.GetWallSegment(topology, coordinate, edgeIndex, cellSize, wallHeight, floorHeight), material);
         }
 
-        public void AddDoorWall(AxialCoord coordinate, int edgeIndex, Material material)
+        public void AddDoorWall(CellCoord coordinate, int edgeIndex, Material material)
         {
-            float doorWidth = HexMath.CalculateDoorWidth(HexMath.GetEdgeLength(hexSize), doorWidthRatio);
-            List<WallSegment> segments = HexGeometry.GetDoorWallSegments(
-                coordinate, edgeIndex, hexSize, wallHeight, doorWidth, doorHeight, floorHeight);
+            float doorWidth = CellGeometry.CalculateDoorWidth(cellSize, doorWidthRatio);
+            List<WallSegment> segments = CellGeometry.GetDoorWallSegments(
+                topology, coordinate, edgeIndex, cellSize, wallHeight, doorWidth, doorHeight, floorHeight);
 
             foreach (WallSegment segment in segments)
             {
@@ -66,12 +71,12 @@ namespace CRG.Geometry
             }
         }
 
-        // Hexagon at wall height facing down, visible from inside the room only.
-        public void AddCeiling(AxialCoord coordinate, Material material)
+        // Cell outline at wall height facing down, visible from inside the room only.
+        public void AddCeiling(CellCoord coordinate, Material material)
         {
-            Vector3[] vertices = HexGeometry.GetFloorVertices(coordinate, hexSize, floorHeight + wallHeight);
-            List<Vector3> corners = new List<Vector3>(6);
-            for (int i = 1; i <= 6; i++)
+            Vector3[] vertices = CellGeometry.GetFloorVertices(topology, coordinate, cellSize, floorHeight + wallHeight);
+            List<Vector3> corners = new List<Vector3>(vertices.Length - 1);
+            for (int i = 1; i < vertices.Length; i++)
                 corners.Add(vertices[i]);
 
             AddPolygon(corners, Vector3.down, material);
@@ -106,7 +111,7 @@ namespace CRG.Geometry
             }
 
             float edgeLength = Vector3.Distance(strip.EdgeStart, strip.EdgeEnd);
-            float doorWidth = Mathf.Min(HexMath.CalculateDoorWidth(edgeLength, doorWidthRatio), edgeLength);
+            float doorWidth = Mathf.Min(CellGeometry.CalculateDoorWidth(edgeLength, doorWidthRatio), edgeLength);
             Vector3 doorStart = strip.EdgeStart + edgeDirection * ((edgeLength - doorWidth) / 2f);
             Vector3 doorEnd = doorStart + edgeDirection * doorWidth;
             Vector3 innerDoorStart = doorStart + inset;

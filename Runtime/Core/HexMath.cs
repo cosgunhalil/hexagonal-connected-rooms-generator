@@ -2,16 +2,12 @@ using UnityEngine;
 
 namespace CRG.Core
 {
-    // Pointy-top hexagons in the XZ plane. Vertex i sits at 30 + 60 * i degrees from +X.
+    // Shape math of a single pointy-top hexagon in the XZ plane (see HexTopology for the grid).
+    // Vertex i sits at 30 + 60 * i degrees from +X.
     // Edge i runs from vertex (i + 5) % 6 to vertex i, so its outward normal points at
-    // 60 * i degrees, i.e. towards the neighbor in HexDirection i.
+    // 60 * i degrees, i.e. towards the neighbor in direction i.
     public static class HexMath
     {
-        // Worst-case distance along an edge between a hex corner and the end of a thick wall's inner face,
-        // per unit of wall thickness (an interior half wall of depth t/2 meeting an exterior wall of depth t).
-        // Door openings must stay clear of it.
-        public const float ThickWallCornerInsetPerThickness = 0.8660254037844386f;
-
         private const float SquareRootOfThreeHalf = 0.8660254037844386f;
         private const int HexagonVertexCount = 6;
         private const int HexagonEdgeCount = 6;
@@ -87,25 +83,10 @@ namespace CRG.Core
             return hexSize;
         }
 
-        public static Vector3 AxialToWorldPosition(AxialCoord coordinate, float hexSize)
-        {
-            return coordinate.ToWorldPosition(hexSize);
-        }
-
-        public static AxialCoord WorldToAxialPosition(Vector3 worldPosition, float hexSize)
-        {
-            return AxialCoord.FromWorldPosition(worldPosition, hexSize);
-        }
-
         public static int GetOppositeEdge(int edgeIndex)
         {
             ValidateEdgeIndex(edgeIndex);
             return (edgeIndex + 3) % HexagonEdgeCount;
-        }
-
-        public static float CalculateDoorWidth(float edgeLength, float doorWidthRatio = 0.2f)
-        {
-            return edgeLength * doorWidthRatio;
         }
 
         private static void ValidateVertexIndex(int vertexIndex)

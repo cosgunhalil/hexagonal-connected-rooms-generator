@@ -4,67 +4,69 @@ using UnityEngine;
 
 namespace CRG.Core
 {
-    public class HexGrid
+    // Sparse grid of cells plus the rooms built on it. Shape and connectivity come from the topology.
+    public class CellGrid
     {
-        private readonly Dictionary<AxialCoord, HexCell> cells;
+        private readonly Dictionary<CellCoord, GridCell> cells;
         private readonly Dictionary<int, Room> rooms;
         private int nextRoomID;
 
-        public float HexSize { get; private set; }
+        public IGridTopology Topology { get; }
+        public float CellSize { get; }
         public int CellCount => cells.Count;
         public int RoomCount => rooms.Count;
 
-        public HexGrid(float hexSize)
+        public CellGrid(IGridTopology topology, float cellSize)
         {
-            HexSize = hexSize;
-            cells = new Dictionary<AxialCoord, HexCell>();
+            Topology = topology;
+            CellSize = cellSize;
+            cells = new Dictionary<CellCoord, GridCell>();
             rooms = new Dictionary<int, Room>();
             nextRoomID = 0;
         }
 
-        public HexCell GetCell(AxialCoord coord)
+        public GridCell GetCell(CellCoord coord)
         {
             return cells.TryGetValue(coord, out var cell) ? cell : null;
         }
 
-        public HexCell GetOrCreateCell(AxialCoord coord)
+        public GridCell GetOrCreateCell(CellCoord coord)
         {
             if (!cells.ContainsKey(coord))
             {
-                cells[coord] = new HexCell(coord);
+                cells[coord] = new GridCell(coord, Topology.GetEdgeCount(coord));
             }
             return cells[coord];
         }
 
-        public bool HasCell(AxialCoord coord)
+        public bool HasCell(CellCoord coord)
         {
             return cells.ContainsKey(coord);
         }
 
-        public void RemoveCell(AxialCoord coord)
+        public void RemoveCell(CellCoord coord)
         {
             cells.Remove(coord);
         }
 
-        public IEnumerable<HexCell> GetAllCells()
+        public IEnumerable<GridCell> GetAllCells()
         {
             return cells.Values;
         }
 
-        public IEnumerable<AxialCoord> GetAllCoordinates()
+        public IEnumerable<CellCoord> GetAllCoordinates()
         {
             return cells.Keys;
         }
 
-        public HexCell GetNeighbor(AxialCoord coord, int direction)
+        public GridCell GetNeighbor(CellCoord coord, int edge)
         {
-            AxialCoord neighborCoord = coord.GetNeighbor(direction);
-            return GetCell(neighborCoord);
+            return GetCell(Topology.GetNeighbor(coord, edge));
         }
 
-        public IEnumerable<HexCell> GetNeighbors(AxialCoord coord)
+        public IEnumerable<GridCell> GetNeighbors(CellCoord coord)
         {
-            foreach (var neighborCoord in coord.GetAllNeighbors())
+            foreach (var neighborCoord in Topology.GetNeighbors(coord))
             {
                 var cell = GetCell(neighborCoord);
                 if (cell != null)
@@ -72,6 +74,11 @@ namespace CRG.Core
                     yield return cell;
                 }
             }
+        }
+
+        public Vector3 GetCellCenter(CellCoord coord)
+        {
+            return Topology.GetCellCenter(coord, CellSize);
         }
 
         public Room CreateRoom()
@@ -113,7 +120,7 @@ namespace CRG.Core
             return rooms.Values;
         }
 
-        public void AssignCellToRoom(AxialCoord coord, int roomID)
+        public void AssignCellToRoom(CellCoord coord, int roomID)
         {
             var cell = GetOrCreateCell(coord);
             cell.State = CellState.Room;
@@ -126,14 +133,14 @@ namespace CRG.Core
             }
         }
 
-        public IEnumerable<HexCell> GetCellsInRoom(int roomID)
+        public IEnumerable<GridCell> GetCellsInRoom(int roomID)
         {
             return cells.Values.Where(c => c.RoomID == roomID);
         }
 
-        public IEnumerable<AxialCoord> GetEmptyNeighbors(AxialCoord coord)
+        public IEnumerable<CellCoord> GetEmptyNeighbors(CellCoord coord)
         {
-            foreach (var neighborCoord in coord.GetAllNeighbors())
+            foreach (var neighborCoord in Topology.GetNeighbors(coord))
             {
                 var cell = GetCell(neighborCoord);
                 if (cell == null || cell.State == CellState.Empty)
@@ -143,12 +150,10 @@ namespace CRG.Core
             }
         }
 
-        public bool IsEdgeShared(AxialCoord coordA, int edgeA, AxialCoord coordB, int edgeB)
+        public bool IsEdgeShared(CellCoord coordA, int edgeA, CellCoord coordB, int edgeB)
         {
-            AxialCoord neighborFromA = coordA.GetNeighbor(edgeA);
-            AxialCoord neighborFromB = coordB.GetNeighbor(edgeB);
-
-            return neighborFromA == coordB && neighborFromB == coordA;
+            return Topology.GetNeighbor(coordA, edgeA) == coordB &&
+                   Topology.GetNeighbor(coordB, edgeB) == coordA;
         }
 
         public Bounds GetBounds()
@@ -163,7 +168,7 @@ namespace CRG.Core
 
             foreach (var coord in cells.Keys)
             {
-                Vector3 worldPos = coord.ToWorldPosition(HexSize);
+                Vector3 worldPos = GetCellCenter(coord);
                 minX = Mathf.Min(minX, worldPos.x);
                 maxX = Mathf.Max(maxX, worldPos.x);
                 minZ = Mathf.Min(minZ, worldPos.z);
@@ -171,8 +176,8 @@ namespace CRG.Core
             }
 
             Vector3 center = new Vector3((minX + maxX) / 2f, 0, (minZ + maxZ) / 2f);
-            Vector3 size = new Vector3(maxX - minX + HexSize * 2f, 0, maxZ - minZ + HexSize * 2f);
-            
+            Vector3 size = new Vector3(maxX - minX + CellSize * 2f, 0, maxZ - minZ + CellSize * 2f);
+
             return new Bounds(center, size);
         }
 
@@ -200,7 +205,7 @@ namespace CRG.Core
 
         public override string ToString()
         {
-            return $"HexGrid: {cells.Count} cells, {rooms.Count} rooms, HexSize: {HexSize}";
+            return $"CellGrid ({Topology.Type}): {cells.Count} cells, {rooms.Count} rooms, CellSize: {CellSize}";
         }
     }
 }

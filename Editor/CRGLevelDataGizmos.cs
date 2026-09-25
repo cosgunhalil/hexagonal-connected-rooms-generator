@@ -57,20 +57,22 @@ namespace CRG.Editor
 
         private static void DrawRoomOutlines(CRGLevelData data)
         {
-            Vector3[] corners = HexMath.GetHexVertices(data.HexSize * 0.92f);
-            Vector3[] outline = new Vector3[7];
+            IGridTopology topology = data.Topology;
+            float outlineSize = data.CellSize * 0.92f;
             Vector3 lift = Vector3.up * OutlineLift;
 
             foreach (CRGLevelData.RoomData room in data.Rooms)
             {
                 Handles.color = GetRoomColor(room.RoomID);
 
-                foreach (AxialCoord cell in room.Cells)
+                foreach (CellCoord cell in room.Cells)
                 {
                     Vector3 center = data.GetCellLocalPosition(cell) + lift;
-                    for (int i = 0; i < 6; i++)
-                        outline[i] = center + corners[i];
-                    outline[6] = outline[0];
+                    int corners = topology.GetEdgeCount(cell);
+                    Vector3[] outline = new Vector3[corners + 1];
+                    for (int i = 0; i < corners; i++)
+                        outline[i] = center + topology.GetCornerOffset(cell, i, outlineSize);
+                    outline[corners] = outline[0];
 
                     Handles.DrawAAPolyLine(OutlineWidth, outline);
                 }
@@ -143,13 +145,16 @@ namespace CRG.Editor
         // Rings around the start (green) and end (red) rooms' anchor cells.
         private static void DrawRoomRoles(CRGLevelData data)
         {
-            float radius = HexMath.GetInnerRadius(data.HexSize) * 0.6f;
             Vector3 lift = Vector3.up * OutlineLift;
 
             foreach (CRGLevelData.RoomData room in data.Rooms)
             {
                 if (room.Role == CRGLevelData.RoomRole.Normal)
                     continue;
+
+                Vector3 anchor = data.GetRoomAnchorLocalPosition(room);
+                CellCoord anchorCell = data.Topology.GetCellAt(anchor, data.CellSize);
+                float radius = data.Topology.GetInnerRadius(anchorCell, data.CellSize) * 0.6f;
 
                 Handles.color = room.Role == CRGLevelData.RoomRole.Start ? StartColor : EndColor;
                 Vector3 center = data.GetRoomAnchorLocalPosition(room) + lift;
