@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using HRCG.Core;
 using HRCG.Generation;
+using HRCG.Runtime;
 
 namespace HRCG.Geometry
 {
@@ -35,7 +36,7 @@ namespace HRCG.Geometry
 
         public GameObject GenerateLevel()
         {
-            return BuildMesh("Generated Level", GetRoomCells(), includeFloors: true, includeWalls: true);
+            return AttachLevelData(BuildMesh("Generated Level", GetRoomCells(), includeFloors: true, includeWalls: true));
         }
 
         public GameObject GenerateLevelSeparateByRoom()
@@ -61,17 +62,17 @@ namespace HRCG.Geometry
                 }
             }
 
-            return levelRoot;
+            return AttachLevelData(levelRoot);
         }
 
         public GameObject GenerateFloorOnly()
         {
-            return BuildMesh("Generated Level (Floor Only)", GetRoomCells(), includeFloors: true, includeWalls: false);
+            return AttachLevelData(BuildMesh("Generated Level (Floor Only)", GetRoomCells(), includeFloors: true, includeWalls: false));
         }
 
         public GameObject GenerateWallsOnly()
         {
-            return BuildMesh("Generated Level (Walls Only)", GetRoomCells(), includeFloors: false, includeWalls: true);
+            return AttachLevelData(BuildMesh("Generated Level (Walls Only)", GetRoomCells(), includeFloors: false, includeWalls: true));
         }
 
         public static GameObject GenerateComplete(GenerationParameters parameters, Material floorMaterial = null, Material wallMaterial = null)
@@ -83,6 +84,15 @@ namespace HRCG.Geometry
             geometryGenerator.SetMaterials(floorMaterial, wallMaterial);
 
             return geometryGenerator.GenerateLevel();
+        }
+
+        private GameObject AttachLevelData(GameObject level)
+        {
+            if (level != null)
+            {
+                level.AddComponent<HRCGLevelData>().Initialize(grid, wallHeight, doorHeight, doorWidthRatio);
+            }
+            return level;
         }
 
         private List<HexCell> GetRoomCells()

@@ -5,6 +5,7 @@ using UnityEngine.ProBuilder;
 using HRCG.Core;
 using HRCG.Generation;
 using HRCG.Geometry;
+using HRCG.Runtime;
 
 namespace HRCG.Tests
 {
@@ -115,6 +116,57 @@ namespace HRCG.Tests
 
             Assert.That(byRoom.transform.childCount, Is.EqualTo(grid.RoomCount));
             Assert.That(faces, Is.EqualTo(single.faceCount));
+        }
+
+        [Test]
+        public void GeneratedLevel_CarriesRoomAndDoorData()
+        {
+            HRCGLevelData data = Track(CreateGenerator().GenerateLevel()).GetComponent<HRCGLevelData>();
+
+            Assert.That(data, Is.Not.Null);
+            Assert.That(data.Rooms.Count, Is.EqualTo(grid.RoomCount));
+
+            int connectionEnds = 0;
+            foreach (HRCGLevelData.RoomData roomData in data.Rooms)
+            {
+                Room room = grid.GetRoom(roomData.RoomID);
+                Assert.That(roomData.Cells, Is.EquivalentTo(room.Cells));
+                Assert.That(roomData.ConnectedRoomIDs, Is.EquivalentTo(room.GetConnectedRoomIDs()));
+                connectionEnds += roomData.ConnectedRoomIDs.Count;
+            }
+
+            Assert.That(data.Doors.Count, Is.EqualTo(connectionEnds / 2), "each door stored once");
+
+            foreach (HRCGLevelData.DoorData door in data.Doors)
+            {
+                Assert.That(grid.GetCell(door.CellA).RoomID, Is.EqualTo(door.RoomA));
+                Assert.That(grid.GetCell(door.CellA).GetEdgeFlag(door.EdgeA), Is.EqualTo(WallFlag.HasDoor));
+                Assert.That(grid.GetCell(door.CellA.GetNeighbor(door.EdgeA)).RoomID, Is.EqualTo(door.RoomB));
+
+                (Vector3 start, Vector3 end) = data.GetDoorOpeningLocal(door);
+                Assert.That(Vector3.Distance(start, end),
+                    Is.EqualTo(parameters.HexSize * parameters.DoorWidthRatio).Within(1e-3f));
+            }
+        }
+
+        [Test]
+        public void GeneratedLevel_RoomAnchorLiesOnRoomCell()
+        {
+            HRCGLevelData data = Track(CreateGenerator().GenerateLevel()).GetComponent<HRCGLevelData>();
+
+            foreach (HRCGLevelData.RoomData room in data.Rooms)
+            {
+                AxialCoord anchorCell = AxialCoord.FromWorldPosition(data.GetRoomAnchorLocalPosition(room), data.HexSize);
+                Assert.That(room.Cells, Does.Contain(anchorCell), $"room {room.RoomID}");
+            }
+        }
+
+        [Test]
+        public void GenerateLevelSeparateByRoom_RootCarriesLevelData()
+        {
+            GameObject byRoom = Track(CreateGenerator().GenerateLevelSeparateByRoom());
+
+            Assert.That(byRoom.GetComponent<HRCGLevelData>().Rooms.Count, Is.EqualTo(grid.RoomCount));
         }
 
         private LevelGeometryGenerator CreateGenerator()
