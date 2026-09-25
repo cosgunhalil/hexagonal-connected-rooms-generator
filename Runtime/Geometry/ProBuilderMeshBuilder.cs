@@ -11,7 +11,6 @@ namespace CRG.Geometry
     {
         private const float MinSize = 0.001f;
 
-        private readonly IGridTopology topology;
         private readonly float cellSize;
         private readonly float wallHeight;
         private readonly float doorHeight;
@@ -21,6 +20,12 @@ namespace CRG.Geometry
         private readonly List<Vector3> positions = new List<Vector3>();
         private readonly List<Face> faces = new List<Face>();
         private readonly List<Material> materials = new List<Material>();
+
+        // The room currently being added. Geometry is computed in the room's own grid and moved into the level
+        // by its placement as vertices are stored; winding and facing are decided before, in local space.
+        private IGridTopology topology;
+        private RoomPlacement placement = RoomPlacement.Identity;
+        private bool placed;
 
         public bool IsEmpty => faces.Count == 0;
 
@@ -35,11 +40,25 @@ namespace CRG.Geometry
             this.floorHeight = floorHeight;
         }
 
+        // Selects the grid and placement of the room whose cells are added next (mixed-grid levels).
+        public void SetRoom(IGridTopology roomTopology, RoomPlacement roomPlacement)
+        {
+            topology = roomTopology;
+            placement = roomPlacement;
+            placed = roomPlacement.x != 0 || roomPlacement.z != 0 || roomPlacement.angle != 0;
+        }
+
+        private Vector3 Place(Vector3 local)
+        {
+            return placed ? placement.TransformPoint(local) : local;
+        }
+
         public void AddFloor(CellCoord coordinate, Material material)
         {
             int baseIndex = positions.Count;
             Vector3[] vertices = CellGeometry.GetFloorVertices(topology, coordinate, cellSize, floorHeight);
-            positions.AddRange(vertices);
+            foreach (Vector3 vertex in vertices)
+                positions.Add(Place(vertex));
 
             // Fan from the center, clockwise when seen from above, so the floor faces +Y.
             int corners = vertices.Length - 1;
@@ -237,7 +256,8 @@ namespace CRG.Geometry
                 points.Reverse();
 
             int baseIndex = positions.Count;
-            positions.AddRange(points);
+            foreach (Vector3 point in points)
+                positions.Add(Place(point));
 
             int[] indices = new int[(points.Count - 2) * 3];
             for (int i = 0; i < points.Count - 2; i++)
@@ -287,10 +307,10 @@ namespace CRG.Geometry
         private void AddQuad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Material material)
         {
             int baseIndex = positions.Count;
-            positions.Add(a);
-            positions.Add(b);
-            positions.Add(c);
-            positions.Add(d);
+            positions.Add(Place(a));
+            positions.Add(Place(b));
+            positions.Add(Place(c));
+            positions.Add(Place(d));
 
             AddFace(new[]
             {

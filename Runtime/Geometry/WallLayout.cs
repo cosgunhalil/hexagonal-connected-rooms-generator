@@ -12,11 +12,15 @@ namespace CRG.Geometry
 
         private readonly CellGrid grid;
         private readonly float wallThickness;
+        private readonly System.Func<CellCoord, int, bool> isExterior;
 
-        public WallLayout(CellGrid grid, float wallThickness)
+        // isExterior overrides which walls face empty space; by default a wall is exterior unless a room cell of
+        // the same grid lies behind it. Mixed levels pass their own rule, since other rooms live on other grids.
+        public WallLayout(CellGrid grid, float wallThickness, System.Func<CellCoord, int, bool> isExterior = null)
         {
             this.grid = grid;
             this.wallThickness = wallThickness;
+            this.isExterior = isExterior;
         }
 
         public float GetDepth(CellCoord cell, int edge)
@@ -34,6 +38,9 @@ namespace CRG.Geometry
 
         public bool IsExterior(CellCoord cell, int edge)
         {
+            if (isExterior != null)
+                return isExterior(cell, edge);
+
             GridCell neighbor = grid.GetNeighbor(cell, edge);
             return neighbor == null || !neighbor.IsPartOfRoom();
         }

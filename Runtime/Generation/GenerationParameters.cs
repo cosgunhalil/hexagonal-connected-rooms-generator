@@ -93,6 +93,23 @@ namespace CRG.Generation
         [Range(0f, 1f)]
         public float LoopChance = 1f;
 
+        [Header("Mixed Grids")]
+        [Tooltip("Relative chance that a room of a mixed level uses hexagons (0 = never)")]
+        [Min(0f)]
+        public float HexagonWeight = 1f;
+
+        [Tooltip("Relative chance that a room of a mixed level uses squares (0 = never)")]
+        [Min(0f)]
+        public float SquareWeight = 1f;
+
+        [Tooltip("Relative chance that a room of a mixed level uses triangles (0 = never)")]
+        [Min(0f)]
+        public float TriangleWeight = 1f;
+
+        [Tooltip("Relative chance that a room of a mixed level uses octagons and squares (0 = never)")]
+        [Min(0f)]
+        public float OctagonSquareWeight = 1f;
+
         [Header("Physics & Navigation")]
         [Tooltip("Add a MeshCollider to the generated level mesh")]
         public bool AddMeshCollider = true;
@@ -233,6 +250,12 @@ namespace CRG.Generation
                 return false;
             }
 
+            if (HexagonWeight < 0f || SquareWeight < 0f || TriangleWeight < 0f || OctagonSquareWeight < 0f)
+            {
+                errorMessage = "Grid type weights must not be negative";
+                return false;
+            }
+
             if (BakeNavMesh && NavMeshGeometry == NavMeshGeometrySource.PhysicsColliders && !AddMeshCollider)
             {
                 errorMessage = "Baking the NavMesh from colliders requires AddMeshCollider";
@@ -281,6 +304,10 @@ namespace CRG.Generation
                 NavMeshAgentTypeID = 0,
                 NavMeshGeometry = NavMeshGeometrySource.RenderMeshes,
                 CreateSpawnPoints = true,
+                HexagonWeight = 1f,
+                SquareWeight = 1f,
+                TriangleWeight = 1f,
+                OctagonSquareWeight = 1f,
                 RandomSeed = -1,
                 MaxIterations = 1000,
                 MaxRetriesPerRoom = 3

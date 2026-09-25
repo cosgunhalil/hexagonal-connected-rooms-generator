@@ -89,9 +89,28 @@ namespace CRG.Editor
             GenerateQuickLevel(parameters);
         }
 
+        // Every grid type in one level, with equal weights.
+        [MenuItem("CRG/Generate Quick Level (Mixed)")]
+        public static void GenerateQuickLevelMixed()
+        {
+            GenerationParameters parameters = GenerationParameters.CreateDefault();
+            parameters.MinCellsPerRoom = 2;
+            parameters.MaxCellsPerRoom = 6;
+            parameters.TargetRoomCount = 20;
+            parameters.WallThickness = 1f;
+            parameters.RandomSeed = Random.Range(0, 999999);
+
+            GameObject level = LevelGeometryGenerator.GenerateCompleteMixed(parameters);
+            RegisterQuickLevel(level);
+        }
+
         private static void GenerateQuickLevel(GenerationParameters parameters)
         {
-            GameObject level = LevelGeometryGenerator.GenerateComplete(parameters, null, null);
+            RegisterQuickLevel(LevelGeometryGenerator.GenerateComplete(parameters, null, null));
+        }
+
+        private static void RegisterQuickLevel(GameObject level)
+        {
             if (level == null)
                 return;
 
