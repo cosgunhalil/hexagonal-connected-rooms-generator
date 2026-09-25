@@ -1,6 +1,6 @@
 # Connected Rooms Generator (CRG)
 
-Procedural level generation for Unity. CRG grows a set of connected rooms on a hexagonal or square grid, where every room is a cluster of adjacent cells, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
+Procedural level generation for Unity. CRG grows a set of connected rooms on a hexagonal, square or triangle grid, where every room is a cluster of adjacent cells, and builds the whole level as **a single ProBuilder mesh** with floors, walls and door openings. Generation works both in the Editor and at runtime.
 
 On top of the geometry it can add colliders, bake a NavMesh, place a door prefab in every doorway, create a spawn point in each room and mark start/end rooms, so a generated level is ready to play.
 
@@ -47,13 +47,13 @@ The generator window also offers **Generate (Separate Rooms)** (one mesh per roo
 4. Internal edges of a room are left open. Edges to empty space become walls. For each adjacent room it may connect to (up to the max connection count, subject to **Loop Chance**), one random shared edge becomes a door.
 5. After the target room count is reached, rooms below the minimum connection count get extra doors where neighbors allow.
 
-Cells lie in the XZ plane with +Z as north: hexagons are pointy-top, squares are axis-aligned, and Cell Size is the edge length of either.
+Cells lie in the XZ plane with +Z as north: hexagons are pointy-top, squares are axis-aligned, triangles are equilateral with alternating up- and down-pointing cells, and Cell Size is always the edge length.
 
 ## Parameters
 
 | Group | Parameter | Default | Description |
 |---|---|---|---|
-| Grid | Grid Type | Hexagon | Shape of the cells rooms are built from: Hexagon or Square. Triangle and octagon + square grids are planned. |
+| Grid | Grid Type | Hexagon | Shape of the cells rooms are built from: Hexagon, Square or Triangle. An octagon + square grid is planned. |
 | | Cell Size | 10 | Edge length of one cell in world units. |
 | Walls | Wall Height | 3 | Height of walls. |
 | | Door Height | 2.5 | Height of door openings (at most Wall Height). |
@@ -63,7 +63,7 @@ Cells lie in the XZ plane with +Z as north: hexagons are pointy-top, squares are
 | | Ceiling Chance | 1 | With Add Ceiling, the chance that each room gets a ceiling (1 = every room, 0 = none), for example to mix indoor and open-air rooms. Rooms are picked after the layout is final, so changing it never changes a seed's rooms or doors. |
 | Room size | Min / Max Cells Per Room | 1 / 5 | Room size range, in cells. |
 | Generation | Target Room Count | 10 | Number of rooms to generate. |
-| | Start Position | (0, 0) | Cell coordinate of the first room (axial q, r for hexagons; column, row for squares). |
+| | Start Position | (0, 0) | Cell coordinate of the first room (axial q, r for hexagons; column, row for squares; lattice x, y plus variant 0 = up, 1 = down for triangles). |
 | Connections | Min / Max Connections Per Room | 1 / 6 | Connection limits per room. Min is best effort: rooms on the edge of the level may have too few neighbors, and a warning is logged. |
 | | Reserve Connection For Growth | On | New rooms keep one connection slot free so later rooms can attach. Matters at low Max Connections, where levels would otherwise stop growing early. |
 | Layout | Layout Bias | 0 | −1 = compact and clustered, 0 = uniform, 1 = long sprawling branches. |

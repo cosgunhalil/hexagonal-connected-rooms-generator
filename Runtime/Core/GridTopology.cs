@@ -7,7 +7,8 @@ namespace CRG.Core
     public enum GridType
     {
         Hexagon,
-        Square
+        Square,
+        Triangle
     }
 
     // Shape and connectivity of a cell grid. All sizes are in world units; cellSize is the edge length,
@@ -49,6 +50,7 @@ namespace CRG.Core
     {
         private static readonly HexTopology Hexagon = new HexTopology();
         private static readonly SquareTopology Square = new SquareTopology();
+        private static readonly TriangleTopology Triangle = new TriangleTopology();
 
         public static IGridTopology Get(GridType type)
         {
@@ -58,6 +60,8 @@ namespace CRG.Core
                     return Hexagon;
                 case GridType.Square:
                     return Square;
+                case GridType.Triangle:
+                    return Triangle;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown grid type");
             }

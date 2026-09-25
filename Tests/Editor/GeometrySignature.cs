@@ -15,9 +15,10 @@ namespace CRG.Tests
     public sealed class GeometrySignature
     {
         public const int FeatureCount = 16;
-        // Measured: float noise of 2e-5 on every coordinate moves features by at most 0.03; moving a 1 m2
-        // triangle by 0.1 units moves them by at least 0.17 (flipping one: 2.1).
-        private const double Tolerance = 0.08;
+        // Measured over all golden levels: float noise of 2e-5 on every coordinate (far more than real runtime
+        // differences) moves features by at most 0.03; moving any single triangle of 1 m2 or more by 0.1 units
+        // moves them by at least 0.06, and flipping one by at least 2.1.
+        private const double Tolerance = 0.045;
 
         private static readonly double[,] PositionWaves = Waves(1, FeatureCount);
         private static readonly double[,] FacingWaves = Waves(2, FeatureCount);

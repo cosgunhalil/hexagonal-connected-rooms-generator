@@ -12,6 +12,7 @@ namespace CRG.Tests
 {
     [TestFixture(GridType.Hexagon)]
     [TestFixture(GridType.Square)]
+    [TestFixture(GridType.Triangle)]
     public class ThickWallAndCeilingTests
     {
         private readonly GridType gridType;
@@ -107,8 +108,9 @@ namespace CRG.Tests
                 Assert.That(Physics.Linecast(center - forward * reach, center + forward * reach), Is.False,
                     $"door {door.RoomA}-{door.RoomB} is blocked");
 
-                // 35% of the edge length from the door center is solid wall, well clear of the corners.
-                Vector3 solid = center - alongEdge * (parameters.CellSize * 0.35f);
+                // A quarter of the edge length from the door center is solid wall, clear of the door and of the
+                // corner regions (which reach furthest at the 60 degree corners of triangle grids).
+                Vector3 solid = center - alongEdge * (parameters.CellSize * 0.25f);
                 Assert.That(Physics.Linecast(solid - forward * reach, solid + forward * reach), Is.True,
                     $"wall next to door {door.RoomA}-{door.RoomB} is open");
             }

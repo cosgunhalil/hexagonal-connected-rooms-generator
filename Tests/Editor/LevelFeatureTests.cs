@@ -13,6 +13,7 @@ namespace CRG.Tests
     // Post-generation features: colliders, spawn points, door prefabs, room roles, layout control and NavMesh.
     [TestFixture(GridType.Hexagon)]
     [TestFixture(GridType.Square)]
+    [TestFixture(GridType.Triangle)]
     public class LevelFeatureTests
     {
         private readonly GridType gridType;

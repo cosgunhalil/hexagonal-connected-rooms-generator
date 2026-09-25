@@ -38,22 +38,46 @@ namespace CRG.Geometry
             return neighbor == null || !neighbor.IsPartOfRoom();
         }
 
+        // The two walls around the corner may differ in depth (at a triangle corner the outside can be both empty
+        // space and another room). The depth is blended by how many cells lie between the edge and each wall, so a
+        // wall keeps its full depth inside its own cell and the change happens in corner-fill cells in between.
+        // When both walls are in the two cells sharing the edge, the smaller depth keeps both caps convex.
         public float GetWrapDepth(CellCoord cell, int edge, bool atEndCorner)
         {
             if (GetDepth(cell, edge) > 0f)
                 return 0f;
 
-            float acrossEdge = WalkAround(cell, edge, atEndCorner);
+            (float acrossDepth, int acrossSteps) = WalkAround(cell, edge, atEndCorner);
+            if (acrossDepth <= 0f)
+                return 0f;
 
             (int otherEdge, bool otherAtEnd) = OtherEdgeAtCorner(cell, edge, atEndCorner);
-            float otherDepth = GetDepth(cell, otherEdge);
-            float thisSide = otherDepth > 0f ? otherDepth : WalkAround(cell, otherEdge, otherAtEnd);
+            float ownDepth = GetDepth(cell, otherEdge);
+            float thisDepth;
+            int thisSteps;
 
-            return acrossEdge > 0f && thisSide > 0f ? System.Math.Min(acrossEdge, thisSide) : 0f;
+            if (ownDepth > 0f)
+            {
+                thisDepth = ownDepth;
+                thisSteps = 0;
+            }
+            else
+            {
+                (thisDepth, thisSteps) = WalkAround(cell, otherEdge, otherAtEnd);
+                if (thisDepth <= 0f)
+                    return 0f;
+                thisSteps += 1;
+            }
+
+            if (acrossSteps + thisSteps == 0)
+                return System.Math.Min(acrossDepth, thisDepth);
+
+            return (acrossDepth * thisSteps + thisDepth * acrossSteps) / (acrossSteps + thisSteps);
         }
 
-        // Crosses the open edge and keeps turning around the corner until a cell has a wall there.
-        private float WalkAround(CellCoord cell, int edge, bool atEndCorner)
+        // Crosses the open edge and keeps turning around the corner until a cell has a wall there. Returns that
+        // wall's depth and the number of wall-free cells passed on the way (0 when the first neighbor has it).
+        private (float, int) WalkAround(CellCoord cell, int edge, bool atEndCorner)
         {
             IGridTopology topology = grid.Topology;
 
@@ -61,7 +85,7 @@ namespace CRG.Geometry
             {
                 GridCell current = grid.GetCell(cell);
                 if (current == null || current.GetEdgeFlag(edge) != WallFlag.NoWall)
-                    return 0f;
+                    return (0f, 0);
 
                 CellCoord neighbor = topology.GetNeighbor(cell, edge);
                 int neighborEdge = topology.GetNeighborEdge(cell, edge);
@@ -71,14 +95,14 @@ namespace CRG.Geometry
 
                 float depth = GetDepth(neighbor, nextEdge);
                 if (depth > 0f)
-                    return depth;
+                    return (depth, step);
 
                 cell = neighbor;
                 edge = nextEdge;
                 atEndCorner = nextAtEnd;
             }
 
-            return 0f;
+            return (0f, 0);
         }
 
         // The cell's other edge touching the same corner: the corner at the end of edge i starts edge i + 1.

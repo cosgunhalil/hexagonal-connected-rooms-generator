@@ -241,10 +241,14 @@ namespace CRG.Geometry
             return true;
         }
 
-        // Where the inner face of a wall wrapping around a corner crosses an open edge touching that corner:
-        // wrapDepth / tan(a/2) from the corner, a being the smaller interior angle of the two cells sharing the
-        // edge there. Both cells compute the same point, so their wall pieces meet exactly. atEndCorner selects
-        // the edge's end corner (corner edge) instead of its start corner (corner edge - 1).
+        // Where the inner face of a wall wrapping around a corner crosses an open edge touching that corner, a
+        // being the smaller interior angle of the two cells sharing the edge there:
+        // - wrapDepth / tan(a/2): the chamfer from the corner's bisector (hexagons, 120 degrees);
+        // - wrapDepth / sin(a): where the wall's inner line meets the open edge (triangles, 60 degrees), so the
+        //   face never bulges past the inner line.
+        // The nearer of the two is used; both are equal at 90 degrees (squares). Both cells compute the same
+        // point, so their wall pieces meet exactly. atEndCorner selects the edge's end corner (corner edge)
+        // instead of its start corner (corner edge - 1).
         public static Vector3 GetWrapPoint(
             IGridTopology topology,
             CellCoord coordinate,
@@ -274,7 +278,8 @@ namespace CRG.Geometry
             Vector3 otherCornerPosition = center + topology.GetCornerOffset(coordinate, otherCorner, cellSize);
 
             float wrapDepth = layout.GetWrapDepth(coordinate, openEdge, atEndCorner);
-            return cornerPosition + (otherCornerPosition - cornerPosition).normalized * (wrapDepth / Mathf.Tan(halfAngle));
+            float distance = wrapDepth * Mathf.Min(1f / Mathf.Tan(halfAngle), 1f / Mathf.Sin(2f * halfAngle));
+            return cornerPosition + (otherCornerPosition - cornerPosition).normalized * distance;
         }
 
         // Half of the cell's interior angle at the given corner.

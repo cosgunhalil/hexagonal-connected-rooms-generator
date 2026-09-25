@@ -30,6 +30,11 @@ namespace CRG.Tests
             yield return Case("SquareHuge", 1, 10, 100, gridType: GridType.Square);
             yield return Case("SquareMaxConnections2", 1, 5, 30, maxConnections: 2, gridType: GridType.Square);
             yield return Case("SquareTreeSprawling", 1, 5, 30, layoutBias: 1f, loopChance: 0f, gridType: GridType.Square);
+            yield return Case("TriangleDefault", 1, 5, 10, gridType: GridType.Triangle);
+            yield return Case("TriangleLarge", 4, 12, 25, gridType: GridType.Triangle);
+            yield return Case("TriangleHuge", 1, 10, 100, gridType: GridType.Triangle);
+            yield return Case("TriangleMaxConnections2", 2, 6, 30, maxConnections: 2, gridType: GridType.Triangle);
+            yield return Case("TriangleTreeClustered", 1, 6, 30, layoutBias: -1f, loopChance: 0f, gridType: GridType.Triangle);
         }
 
         private static TestCaseData Case(string name, int minHex, int maxHex, int rooms,
