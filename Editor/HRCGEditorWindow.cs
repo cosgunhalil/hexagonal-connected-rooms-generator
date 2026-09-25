@@ -17,6 +17,7 @@ namespace HRCG.Editor
         private bool showAdvancedSettings = false;
         private bool autoGenerate = false;
 
+        [MenuItem("HRCG/Level Generator", false, 0)]
         [MenuItem("Window/HRCG/Level Generator")]
         public static void ShowWindow()
         {
