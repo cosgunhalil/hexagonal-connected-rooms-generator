@@ -12,6 +12,15 @@ namespace HRCG.Generation
         [Range(1f, 50f)]
         public float HexSize = 10f;
 
+        [Header("Wall Settings")]
+        [Tooltip("Height of walls in world units")]
+        [Range(0.5f, 20f)]
+        public float WallHeight = 3f;
+
+        [Tooltip("Height of door openings in world units (must not exceed WallHeight)")]
+        [Range(0.5f, 20f)]
+        public float DoorHeight = 2.5f;
+
         [Header("Room Size Settings")]
         [Tooltip("Minimum number of hexagons per room")]
         [Range(1, 20)]
@@ -75,6 +84,18 @@ namespace HRCG.Generation
                 return false;
             }
 
+            if (WallHeight <= 0)
+            {
+                errorMessage = "WallHeight must be greater than 0";
+                return false;
+            }
+
+            if (DoorHeight <= 0 || DoorHeight > WallHeight)
+            {
+                errorMessage = "DoorHeight must be greater than 0 and not exceed WallHeight";
+                return false;
+            }
+
             if (MinHexagonsPerRoom <= 0)
             {
                 errorMessage = "MinHexagonsPerRoom must be at least 1";
@@ -126,6 +147,8 @@ namespace HRCG.Generation
             return new GenerationParameters
             {
                 HexSize = 10f,
+                WallHeight = 3f,
+                DoorHeight = 2.5f,
                 MinHexagonsPerRoom = 1,
                 MaxHexagonsPerRoom = 5,
                 TargetRoomCount = 10,

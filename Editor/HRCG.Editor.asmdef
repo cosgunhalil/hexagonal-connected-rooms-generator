@@ -1,0 +1,20 @@
+{
+    "name": "HRCG.Editor",
+    "rootNamespace": "HRCG.Editor",
+    "references": [
+        "Unity.ProBuilder",
+        "Unity.ProBuilder.Editor",
+        "hcrg.runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

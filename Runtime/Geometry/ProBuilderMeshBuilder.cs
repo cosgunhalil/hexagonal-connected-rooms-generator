@@ -5,12 +5,20 @@ using HRCG.Core;
 
 namespace HRCG.Geometry
 {
+    // Accumulates floor and wall faces and emits them as a single ProBuilderMesh,
+    // with one submesh per distinct material.
     public class ProBuilderMeshBuilder
     {
-        private float hexSize;
-        private float wallHeight;
-        private float doorHeight;
-        private float floorHeight;
+        private readonly float hexSize;
+        private readonly float wallHeight;
+        private readonly float doorHeight;
+        private readonly float floorHeight;
+
+        private readonly List<Vector3> positions = new List<Vector3>();
+        private readonly List<Face> faces = new List<Face>();
+        private readonly List<Material> materials = new List<Material>();
+
+        public bool IsEmpty => faces.Count == 0;
 
         public ProBuilderMeshBuilder(float hexSize, float wallHeight = 3f, float doorHeight = 2.5f, float floorHeight = 0f)
         {
@@ -20,133 +28,95 @@ namespace HRCG.Geometry
             this.floorHeight = floorHeight;
         }
 
-        private List<Vector4> ConvertUVsToVector4(List<Vector2> uvs)
+        public void AddFloor(AxialCoord coordinate, Material material)
         {
-            List<Vector4> uvs4 = new List<Vector4>();
-            foreach (Vector2 uv in uvs)
+            int baseIndex = positions.Count;
+            positions.AddRange(HexGeometry.GetFloorVertices(coordinate, hexSize, floorHeight));
+
+            // Clockwise when seen from above, so the floor faces +Y.
+            int[] indices = new int[18];
+            for (int i = 0; i < 6; i++)
             {
-                uvs4.Add(new Vector4(uv.x, uv.y, 0, 0));
-            }
-            return uvs4;
-        }
-
-        public GameObject BuildFloor(AxialCoord coordinate, Material material = null)
-        {
-            GameObject floorObject = new GameObject($"Floor_{coordinate}");
-            ProBuilderMesh pbMesh = floorObject.AddComponent<ProBuilderMesh>();
-
-            List<Vector3> vertices = HexGeometry.GenerateFloorVertices(coordinate, hexSize, floorHeight);
-            List<int> triangles = HexGeometry.GenerateFloorTriangles();
-            List<Vector2> uvs = HexGeometry.GenerateFloorUVs();
-
-            List<Face> faces = new List<Face>();
-            Face floor = new Face(triangles.ToArray());
-            faces.Add(floor);
-
-            pbMesh.RebuildWithPositionsAndFaces(vertices, faces);
-            pbMesh.SetUVs(0, ConvertUVsToVector4(uvs));
-            pbMesh.ToMesh();
-            pbMesh.Refresh();
-
-            if (material != null)
-            {
-                MeshRenderer renderer = floorObject.GetComponent<MeshRenderer>();
-                if (renderer != null)
-                {
-                    renderer.sharedMaterial = material;
-                }
+                indices[i * 3] = baseIndex;
+                indices[i * 3 + 1] = baseIndex + 1 + (i + 1) % 6;
+                indices[i * 3 + 2] = baseIndex + 1 + i;
             }
 
-            return floorObject;
+            AddFace(indices, material);
         }
 
-        public GameObject BuildWall(AxialCoord coordinate, int edgeIndex, Material material = null)
+        public void AddWall(AxialCoord coordinate, int edgeIndex, Material material)
         {
-            GameObject wallObject = new GameObject($"Wall_{coordinate}_E{edgeIndex}");
-            ProBuilderMesh pbMesh = wallObject.AddComponent<ProBuilderMesh>();
-
-            List<Vector3> vertices = HexGeometry.GenerateWallVertices(coordinate, edgeIndex, hexSize, wallHeight, floorHeight);
-            List<int> triangles = HexGeometry.GenerateWallTriangles();
-            List<Vector2> uvs = HexGeometry.GenerateWallUVs();
-
-            List<Face> faces = new List<Face>();
-            Face wall = new Face(triangles.ToArray());
-            faces.Add(wall);
-
-            pbMesh.RebuildWithPositionsAndFaces(vertices, faces);
-            pbMesh.SetUVs(0, ConvertUVsToVector4(uvs));
-            pbMesh.ToMesh();
-            pbMesh.Refresh();
-
-            if (material != null)
-            {
-                MeshRenderer renderer = wallObject.GetComponent<MeshRenderer>();
-                if (renderer != null)
-                {
-                    renderer.sharedMaterial = material;
-                }
-            }
-
-            return wallObject;
+            AddDoubleSidedQuad(HexGeometry.GetWallSegment(coordinate, edgeIndex, hexSize, wallHeight, floorHeight), material);
         }
 
-        public GameObject BuildDoorWall(AxialCoord coordinate, int edgeIndex, Material material = null)
+        public void AddDoorWall(AxialCoord coordinate, int edgeIndex, Material material)
         {
-            GameObject doorWallObject = new GameObject($"DoorWall_{coordinate}_E{edgeIndex}");
-            ProBuilderMesh pbMesh = doorWallObject.AddComponent<ProBuilderMesh>();
-
-            float doorWidth = HexMath.CalculateDoorWidth(hexSize);
-            var (vertices, triangles, uvs) = HexGeometry.GenerateDoorWallGeometry(
+            float doorWidth = HexMath.CalculateDoorWidth(HexMath.GetEdgeLength(hexSize));
+            List<WallSegment> segments = HexGeometry.GetDoorWallSegments(
                 coordinate, edgeIndex, hexSize, wallHeight, doorWidth, doorHeight, floorHeight);
 
-            List<Face> faces = new List<Face>();
-            for (int i = 0; i < triangles.Count; i += 3)
+            foreach (WallSegment segment in segments)
             {
-                Face face = new Face(new int[] { triangles[i], triangles[i + 1], triangles[i + 2] });
-                faces.Add(face);
+                AddDoubleSidedQuad(segment, material);
             }
-
-            pbMesh.RebuildWithPositionsAndFaces(vertices, faces);
-            pbMesh.SetUVs(0, ConvertUVsToVector4(uvs));
-            pbMesh.ToMesh();
-            pbMesh.Refresh();
-
-            if (material != null)
-            {
-                MeshRenderer renderer = doorWallObject.GetComponent<MeshRenderer>();
-                if (renderer != null)
-                {
-                    renderer.sharedMaterial = material;
-                }
-            }
-
-            return doorWallObject;
         }
 
-        public GameObject BuildCellGeometry(HexCell cell, Material floorMaterial = null, Material wallMaterial = null)
+        public GameObject Build(string name)
         {
-            GameObject cellObject = new GameObject($"Cell_{cell.Coordinate}");
+            ProBuilderMesh mesh = ProBuilderMesh.Create(positions, faces);
+            mesh.gameObject.name = name;
+            mesh.GetComponent<MeshRenderer>().sharedMaterials = materials.ToArray();
+            mesh.ToMesh();
+            mesh.Refresh();
+            return mesh.gameObject;
+        }
 
-            GameObject floor = BuildFloor(cell.Coordinate, floorMaterial);
-            floor.transform.SetParent(cellObject.transform);
+        private void AddDoubleSidedQuad(WallSegment segment, Material material)
+        {
+            Vector3 bottomStart = new Vector3(segment.Start.x, segment.Bottom, segment.Start.z);
+            Vector3 bottomEnd = new Vector3(segment.End.x, segment.Bottom, segment.End.z);
+            Vector3 topStart = new Vector3(segment.Start.x, segment.Top, segment.Start.z);
+            Vector3 topEnd = new Vector3(segment.End.x, segment.Top, segment.End.z);
 
-            for (int edgeIndex = 0; edgeIndex < 6; edgeIndex++)
+            // Separate vertices per side so each side gets its own normal.
+            AddQuad(bottomStart, topStart, topEnd, bottomEnd, material);
+            AddQuad(bottomEnd, topEnd, topStart, bottomStart, material);
+        }
+
+        private void AddQuad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Material material)
+        {
+            int baseIndex = positions.Count;
+            positions.Add(a);
+            positions.Add(b);
+            positions.Add(c);
+            positions.Add(d);
+
+            AddFace(new[]
             {
-                WallFlag flag = cell.GetEdgeFlag(edgeIndex);
+                baseIndex, baseIndex + 1, baseIndex + 2,
+                baseIndex, baseIndex + 2, baseIndex + 3
+            }, material);
+        }
 
-                if (flag.HasFlag(WallFlag.Wall))
-                {
-                    GameObject wall = BuildWall(cell.Coordinate, edgeIndex, wallMaterial);
-                    wall.transform.SetParent(cellObject.transform);
-                }
-                else if (flag.HasFlag(WallFlag.HasDoor))
-                {
-                    GameObject doorWall = BuildDoorWall(cell.Coordinate, edgeIndex, wallMaterial);
-                    doorWall.transform.SetParent(cellObject.transform);
-                }
+        private void AddFace(int[] indices, Material material)
+        {
+            faces.Add(new Face(indices) { submeshIndex = GetSubmeshIndex(material) });
+        }
+
+        private int GetSubmeshIndex(Material material)
+        {
+            if (material == null)
+                material = BuiltinMaterials.defaultMaterial;
+
+            int index = materials.IndexOf(material);
+            if (index < 0)
+            {
+                index = materials.Count;
+                materials.Add(material);
             }
 
-            return cellObject;
+            return index;
         }
     }
 }

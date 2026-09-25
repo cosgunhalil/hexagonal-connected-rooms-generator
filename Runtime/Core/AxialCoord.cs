@@ -69,17 +69,19 @@ namespace HRCG.Core
             return new AxialCoord(cubeX, cubeY);
         }
 
+        // Pointy-top layout. Rows grow towards -Z so that HexDirection i lies at 60 * i degrees
+        // from +X in the XZ plane (E = 0, NE = 60, NW = 120, ...), with +Z as north.
         public Vector3 ToWorldPosition(float hexSize)
         {
             float worldX = hexSize * (WorldPositionXCoefficient * columnIndex + WorldPositionXHalfCoefficient * rowIndex);
-            float worldZ = hexSize * (WorldPositionZCoefficient * rowIndex);
+            float worldZ = -hexSize * (WorldPositionZCoefficient * rowIndex);
             return new Vector3(worldX, 0, worldZ);
         }
 
         public static AxialCoord FromWorldPosition(Vector3 worldPosition, float hexSize)
         {
-            float fractionalColumn = (InverseWorldPositionXCoefficient * worldPosition.x - InverseWorldPositionXSecondaryCoefficient * worldPosition.z) / hexSize;
-            float fractionalRow = (InverseWorldPositionZCoefficient * worldPosition.z) / hexSize;
+            float fractionalColumn = (InverseWorldPositionXCoefficient * worldPosition.x + InverseWorldPositionXSecondaryCoefficient * worldPosition.z) / hexSize;
+            float fractionalRow = -(InverseWorldPositionZCoefficient * worldPosition.z) / hexSize;
             return RoundToAxial(fractionalColumn, fractionalRow);
         }
 

@@ -2,56 +2,36 @@ using UnityEngine;
 
 namespace HRCG.Core
 {
+    // Pointy-top hexagons in the XZ plane. Vertex i sits at 30 + 60 * i degrees from +X.
+    // Edge i runs from vertex (i + 5) % 6 to vertex i, so its outward normal points at
+    // 60 * i degrees, i.e. towards the neighbor in HexDirection i.
     public static class HexMath
     {
-        private const float SquareRootOfThree = 1.7320508075688772f;
         private const float SquareRootOfThreeHalf = 0.8660254037844386f;
-        private const float SquareRootOfThreeThird = 0.5773502691896257f;
         private const int HexagonVertexCount = 6;
         private const int HexagonEdgeCount = 6;
         private const float DegreesPerVertex = 60f;
+        private const float VertexAngleOffset = 30f;
+        private const float DoorWidthRatio = 0.2f;
 
-        public static Vector3[] GetHexVertices(float hexSize, bool flatTop = true)
+        public static Vector3[] GetHexVertices(float hexSize)
         {
             Vector3[] vertices = new Vector3[HexagonVertexCount];
-            
-            if (flatTop)
+
+            for (int i = 0; i < HexagonVertexCount; i++)
             {
-                for (int i = 0; i < HexagonVertexCount; i++)
-                {
-                    float angleDegrees = DegreesPerVertex * i;
-                    float angleRadians = Mathf.Deg2Rad * angleDegrees;
-                    vertices[i] = new Vector3(
-                        hexSize * Mathf.Cos(angleRadians),
-                        0,
-                        hexSize * Mathf.Sin(angleRadians)
-                    );
-                }
+                vertices[i] = GetHexVertex(i, hexSize);
             }
-            else
-            {
-                for (int i = 0; i < HexagonVertexCount; i++)
-                {
-                    float angleDegrees = DegreesPerVertex * i + 30f;
-                    float angleRadians = Mathf.Deg2Rad * angleDegrees;
-                    vertices[i] = new Vector3(
-                        hexSize * Mathf.Cos(angleRadians),
-                        0,
-                        hexSize * Mathf.Sin(angleRadians)
-                    );
-                }
-            }
-            
+
             return vertices;
         }
 
-        public static Vector3 GetHexVertex(int vertexIndex, float hexSize, bool flatTop = true)
+        public static Vector3 GetHexVertex(int vertexIndex, float hexSize)
         {
             ValidateVertexIndex(vertexIndex);
 
-            float angleDegrees = flatTop ? DegreesPerVertex * vertexIndex : DegreesPerVertex * vertexIndex + 30f;
-            float angleRadians = Mathf.Deg2Rad * angleDegrees;
-            
+            float angleRadians = Mathf.Deg2Rad * (DegreesPerVertex * vertexIndex + VertexAngleOffset);
+
             return new Vector3(
                 hexSize * Mathf.Cos(angleRadians),
                 0,
@@ -59,28 +39,28 @@ namespace HRCG.Core
             );
         }
 
-        public static Vector3 GetEdgeCenter(int edgeIndex, float hexSize, bool flatTop = true)
+        public static (Vector3, Vector3) GetEdgeVertices(int edgeIndex, float hexSize)
         {
             ValidateEdgeIndex(edgeIndex);
 
-            Vector3 vertex1 = GetHexVertex(edgeIndex, hexSize, flatTop);
-            Vector3 vertex2 = GetHexVertex((edgeIndex + 1) % HexagonVertexCount, hexSize, flatTop);
-            
-            return (vertex1 + vertex2) / 2f;
+            Vector3 start = GetHexVertex((edgeIndex + HexagonVertexCount - 1) % HexagonVertexCount, hexSize);
+            Vector3 end = GetHexVertex(edgeIndex, hexSize);
+
+            return (start, end);
         }
 
-        public static float GetEdgeLength(float hexSize)
+        public static Vector3 GetEdgeCenter(int edgeIndex, float hexSize)
         {
-            return hexSize;
+            (Vector3 start, Vector3 end) = GetEdgeVertices(edgeIndex, hexSize);
+            return (start + end) / 2f;
         }
 
-        public static Vector3 GetEdgeNormal(int edgeIndex, bool flatTop = true)
+        public static Vector3 GetEdgeNormal(int edgeIndex)
         {
             ValidateEdgeIndex(edgeIndex);
 
-            float angleDegrees = flatTop ? DegreesPerVertex * edgeIndex + 30f : DegreesPerVertex * edgeIndex + 60f;
-            float angleRadians = Mathf.Deg2Rad * angleDegrees;
-            
+            float angleRadians = Mathf.Deg2Rad * (DegreesPerVertex * edgeIndex);
+
             return new Vector3(
                 Mathf.Cos(angleRadians),
                 0,
@@ -88,14 +68,9 @@ namespace HRCG.Core
             );
         }
 
-        public static (Vector3, Vector3) GetEdgeVertices(int edgeIndex, float hexSize, bool flatTop = true)
+        public static float GetEdgeLength(float hexSize)
         {
-            ValidateEdgeIndex(edgeIndex);
-
-            Vector3 vertex1 = GetHexVertex(edgeIndex, hexSize, flatTop);
-            Vector3 vertex2 = GetHexVertex((edgeIndex + 1) % HexagonVertexCount, hexSize, flatTop);
-            
-            return (vertex1, vertex2);
+            return hexSize;
         }
 
         public static float GetInnerRadius(float hexSize)
@@ -124,42 +99,8 @@ namespace HRCG.Core
             return (edgeIndex + 3) % HexagonEdgeCount;
         }
 
-        public static Vector3[] GetWallVertices(int edgeIndex, float hexSize, float wallHeight, bool flatTop = true)
-        {
-            (Vector3 vertex1, Vector3 vertex2) = GetEdgeVertices(edgeIndex, hexSize, flatTop);
-            
-            return new Vector3[]
-            {
-                vertex1,
-                vertex2,
-                vertex2 + Vector3.up * wallHeight,
-                vertex1 + Vector3.up * wallHeight
-            };
-        }
-
-        public static Vector3[] GetDoorVertices(int edgeIndex, float hexSize, float wallHeight, float doorWidth, bool flatTop = true)
-        {
-            Vector3 edgeCenter = GetEdgeCenter(edgeIndex, hexSize, flatTop);
-            (Vector3 vertex1, Vector3 vertex2) = GetEdgeVertices(edgeIndex, hexSize, flatTop);
-            
-            Vector3 edgeDirection = (vertex2 - vertex1).normalized;
-            float halfDoorWidth = doorWidth / 2f;
-            
-            Vector3 doorVertex1 = edgeCenter - edgeDirection * halfDoorWidth;
-            Vector3 doorVertex2 = edgeCenter + edgeDirection * halfDoorWidth;
-            
-            return new Vector3[]
-            {
-                doorVertex1,
-                doorVertex2,
-                doorVertex2 + Vector3.up * wallHeight,
-                doorVertex1 + Vector3.up * wallHeight
-            };
-        }
-
         public static float CalculateDoorWidth(float edgeLength)
         {
-            const float DoorWidthRatio = 0.2f;
             return edgeLength * DoorWidthRatio;
         }
 
