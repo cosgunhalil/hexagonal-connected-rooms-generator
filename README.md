@@ -35,7 +35,7 @@ Alternatively, clone or copy the repository into your project's `Assets` or `Pac
 
 - **CRG → Generate Quick Level (Small / Medium / Large / Mixed)** generates a level with preset settings and a random seed; Mixed uses every grid type.
 - **CRG → Level Generator** (also under **Window → CRG**) opens the full generator window: set parameters, materials and an optional door prefab, then click **Generate Level**.
-- **GameObject → CRG → Create Level Generator** adds an `CRGRuntimeComponent` to the scene. It can generate from its Inspector, or automatically on Start at runtime.
+- **GameObject → CRG → Create Level Generator** adds a `CRGRuntimeComponent` to the scene. It can generate from its Inspector, or automatically on Start at runtime.
 - **Assets → Create → CRG → Generation Parameters** creates a reusable parameters asset.
 
 The generator window also offers **Generate (Separate Rooms)** (one mesh per room), **Floor Only** and **Walls Only**.
@@ -153,14 +153,16 @@ geometry.SetDoorPrefab(doorPrefab);
 GameObject level = geometry.GenerateLevel();                      // or GenerateLevelSeparateByRoom()
 ```
 
-Every generated level has an `CRGLevelData` component with the layout, stored with the scene:
+Every generated level has a `CRGLevelData` component with the layout, stored with the scene:
 
 | Member | Description |
 |---|---|
-| `Rooms` | `RoomData` per room: `RoomID`, `Cells`, `ConnectedRoomIDs`, `DistanceFromStart`, `Role` (Start / End / Normal), `SpawnPoint`, `IsDeadEnd`, `HasCeiling`. |
+| `GridType`, `CellSize`, `IsMixed` | The level's grid type and cell edge length; `IsMixed` is true for mixed levels. |
+| `Rooms` | `RoomData` per room: `RoomID`, `Cells`, `ConnectedRoomIDs`, `DistanceFromStart`, `Role` (Start / End / Normal), `SpawnPoint`, `IsDeadEnd`, `HasCeiling`, and for mixed levels the room's own `GridType` and `Placement` (where its grid sits in the level). |
 | `Doors` | `DoorData` per door: `RoomA`, `RoomB`, `CellA`, `EdgeA`, `DoorObject` (the placed prefab, if any). |
 | `StartRoom`, `EndRoom` | The first room placed, and the room farthest from it by door count. |
 | `GetRoom(id)`, `GetSpawnPoint(id)` | Lookups by room ID. |
+| `GetTopology(room)`, `GetCellLocalPosition(room, cell)`, `GetRoomAnchorLocalPosition(room)` | The grid and cell positions of a room, in the level's local space. They work for every level, including mixed ones where each room has its own grid. |
 | `GetDoorCenterLocal(door)`, `GetDoorForwardLocal(door)`, `GetDoorOpeningLocal(door)` | Door position, direction (RoomA → RoomB) and opening endpoints, in the level's local space. |
 
 ## Scene-view overlays
@@ -169,38 +171,13 @@ Every generated level draws room outlines in per-room colors, room labels (size,
 
 ## Tests
 
-Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → Test Runner → EditMode**. They cover hex math, level invariants across many seeds and settings, geometry output and the post-generation features, including a NavMesh path from the start room to the end room when AI Navigation is installed.
+Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → Test Runner → EditMode**. They cover the grid topologies, level invariants across many seeds and settings for every grid type and for mixed levels, geometry output (including solid wall corners and ceilings), pinned golden levels that catch unintended changes to existing seeds, and the post-generation features, including a NavMesh path from the start room to the end room when AI Navigation is installed.
 
 ## Limitations
 
 - With thick walls, outer corners where a room wraps around a neighboring cell are chamfered rather than rounded.
 - Min Connections Per Room is best effort for rooms at the edge of the level.
 - The level is built around the origin; move the generated GameObject to place it elsewhere.
-
-## Mixed-level data
-
-For mixed levels `CRGLevelData.IsMixed` is true, and each `RoomData` also carries the room's `GridType` and `Placement` (where its own grid sits in the level). Use the room-aware helpers such as `GetTopology(room)`, `GetCellLocalPosition(room, cell)` and `GetRoomAnchorLocalPosition(room)`; the door helpers already handle mixed levels.
-
-## Migrating from 0.2.x (grid abstraction, 0.3.0)
-
-The generator now works on a general cell grid, so hexagon-specific names changed. Serialized data is migrated automatically: parameter assets, generator components and saved levels keep their values, and hex levels are generated exactly as before.
-
-- `HexGrid` / `HexCell` / `AxialCoord` became `CellGrid` / `GridCell` / `CellCoord` (fields `x`, `y`, `variant`).
-- `GenerationParameters.HexSize` / `MinHexagonsPerRoom` / `MaxHexagonsPerRoom` became `CellSize` / `MinCellsPerRoom` / `MaxCellsPerRoom`, and `GridType` was added.
-- Neighbors, positions and distances come from the grid topology: `grid.Topology.GetNeighbor(cell, edge)`, `grid.GetCellCenter(cell)`, `grid.Topology.GetDistance(a, b)` instead of `AxialCoord.GetNeighbor`, `ToWorldPosition` and `DistanceTo`.
-- `CRGLevelData.HexSize` became `CellSize`; `GridType` and `Topology` were added.
-- `HexGeometry` became `CellGeometry`, and its methods take the topology as first argument.
-
-## Migrating from 0.1.x (Hexagonal Connected Rooms Generator / HRCG)
-
-Version 0.2.0 renamed the package:
-
-- **Package ID** `com.hrcg.hexagonal-rooms-generator` became `com.cosgunhalil.connected-rooms-generator`. If you installed through the Package Manager, remove the old package and add it again from the same git URL.
-- **Namespaces** `HRCG.*` became `CRG.*`, and the classes `HRCGGenerator`, `HRCGLevelData` and `HRCGRuntimeComponent` became `CRGGenerator`, `CRGLevelData` and `CRGRuntimeComponent`. Update `using` directives and type names in your code.
-- **Assemblies** `hcrg.runtime` / `HRCG.Editor` became `CRG.Runtime` / `CRG.Editor`. Update references in your own assembly definitions.
-- **Menus** moved from **HRCG** to **CRG**.
-- **The `HRCG_AI_NAVIGATION` define** became `CRG_AI_NAVIGATION`.
-- **Existing scenes and assets keep working.** Components and parameter assets are referenced by their unchanged script IDs. NavMesh bakes saved as `HRCG-NavMesh-*.asset` are still found by **CRG → Delete Unused NavMesh Assets**, while new bakes are named `CRG-NavMesh-*.asset`.
 
 ## License
 
