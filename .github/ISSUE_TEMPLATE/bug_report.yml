@@ -1,0 +1,94 @@
+name: Bug report
+description: Something is wrong with a generated level, the Editor tools or the runtime API.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please search the existing issues first. Security problems should be reported privately; see the security policy.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Where you generated the level (Level Generator window, a quick level menu, CRGRuntimeComponent or code) and what you did.
+      placeholder: |
+        1. Open CRG → Level Generator
+        2. Set ...
+        3. Click Generate Level
+    validations:
+      required: true
+
+  - type: dropdown
+    id: grid-type
+    attributes:
+      label: Grid Type
+      options:
+        - Hexagon
+        - Square
+        - Triangle
+        - Octagon + Square
+        - Mixed (all grid types)
+        - Not related to a grid type
+    validations:
+      required: true
+
+  - type: input
+    id: seed
+    attributes:
+      label: Random Seed
+      description: The seed of the level. A seed of −1 can't be reproduced, so if you can, set a fixed seed and check that the problem still happens.
+      placeholder: "1234"
+
+  - type: textarea
+    id: parameters
+    attributes:
+      label: Changed parameters
+      description: Every generation parameter you changed from its default (for example Wall Thickness, Door Width Ratio, Layout Bias, grid type weights).
+      placeholder: |
+        Wall Thickness: 1
+        Target Room Count: 20
+
+  - type: input
+    id: crg-version
+    attributes:
+      label: CRG version
+      placeholder: "0.6.0"
+    validations:
+      required: true
+
+  - type: input
+    id: unity-version
+    attributes:
+      label: Unity version
+      placeholder: "6000.3.11f1"
+    validations:
+      required: true
+
+  - type: input
+    id: package-versions
+    attributes:
+      label: ProBuilder and AI Navigation versions
+      description: Leave AI Navigation out if it isn't installed.
+      placeholder: "ProBuilder 6.0.9, AI Navigation 2.0.11"
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors or warnings
+      description: Paste them here; they are formatted as code automatically.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: For visual problems, a screenshot of the level, ideally with the Scene-view overlays turned on.

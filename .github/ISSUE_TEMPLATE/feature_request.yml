@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest a new feature or an improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Please search the existing issues first, in case someone already suggested it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve?
+      description: What you are trying to do with CRG, and what is missing or hard today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Your idea
+      description: How you imagine it working, for example a new parameter, a menu, or an API method.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Room layout and generation
+        - Grid types
+        - Geometry (walls, doors, ceilings, meshes)
+        - Gameplay extras (colliders, NavMesh, spawns, door prefabs)
+        - Editor tools and overlays
+        - Runtime API
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Workarounds you use today, or other solutions you considered.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: More context
+      description: Screenshots, sketches or examples from other games or tools.
