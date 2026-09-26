@@ -4,6 +4,10 @@ Procedural level generation for Unity. CRG grows a set of connected rooms on a h
 
 On top of the geometry it can add colliders, bake a NavMesh, place a door prefab in every doorway, create a spawn point in each room and mark start/end rooms, so a generated level is ready to play.
 
+<p align="center">
+  <a href="Documentation~/media/crg-demo.mp4"><img src="Documentation~/media/crg-demo.gif" alt="Generating levels with CRG" width="480"></a>
+</p>
+
 ## Features
 
 - **Four grid types, or all at once**: hexagons, squares, triangles and octagons + squares, or a mixed level where every room picks its own grid type by weight.
