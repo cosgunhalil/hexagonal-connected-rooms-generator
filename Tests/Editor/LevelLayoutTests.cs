@@ -143,7 +143,9 @@ namespace CRG.Tests
             LevelLayout layout = new LevelLayout();
             LayoutCell a = layout.AddFirstCell(CellShape.Square);
             LayoutCell b = layout.Attach(a.id, 0, CellShape.Square);
-            LayoutCell c = layout.Attach(b.id, 0, CellShape.Square);
+            // b sits on a with its own edge 0, so its opposite edge 2 continues the chain.
+            LayoutCell c = layout.Attach(b.id, 2, CellShape.Square);
+            Assert.IsNotNull(c, "a straight chain of three squares");
 
             Assert.IsFalse(layout.CanRemove(b.id, out string reason));
             StringAssert.Contains("split", reason);

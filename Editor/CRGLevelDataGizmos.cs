@@ -62,11 +62,10 @@ namespace CRG.Editor
             foreach (CRGLevelData.RoomData room in data.Rooms)
             {
                 Handles.color = GetRoomColor(room.RoomID);
-                IGridTopology topology = data.GetTopology(room);
 
                 foreach (CellCoord cell in room.Cells)
                 {
-                    int corners = topology.GetEdgeCount(cell);
+                    int corners = data.GetCellEdgeCount(room, cell);
                     Vector3[] outline = new Vector3[corners + 1];
                     for (int i = 0; i < corners; i++)
                         outline[i] = data.GetCellCornerLocal(room, cell, i, 0.92f) + lift;
@@ -152,7 +151,7 @@ namespace CRG.Editor
                     continue;
 
                 CellCoord anchorCell = data.GetRoomAnchorCell(room);
-                float radius = data.GetTopology(room).GetInnerRadius(anchorCell, data.CellSize) * 0.6f;
+                float radius = data.GetCellInnerRadius(room, anchorCell) * 0.6f;
 
                 Handles.color = room.Role == CRGLevelData.RoomRole.Start ? StartColor : EndColor;
                 Vector3 center = data.GetRoomAnchorLocalPosition(room) + lift;

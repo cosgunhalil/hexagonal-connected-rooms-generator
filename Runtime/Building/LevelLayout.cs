@@ -175,6 +175,28 @@ namespace CRG.Building
                     placement.TransformPoint(CellShapes.GetCorner(shape, edge)));
         }
 
+        // Placement of the cell shape's own grid, in world units, that puts the grid's cell (0, 0) onto this cell.
+        // Geometry and level data build every cell in its own grid and move it into place with this.
+        public static RoomPlacement GetGridPlacement(LayoutCell cell, float cellSize)
+        {
+            Vector3 gridCenter = CellShapes.GetTopology(cell.shape).GetCellCenter(CellShapes.GetCell(cell.shape), cellSize);
+            double cos = Math.Cos(cell.placement.angle);
+            double sin = Math.Sin(cell.placement.angle);
+            return new RoomPlacement(
+                cell.placement.x * cellSize - (cos * gridCenter.x - sin * gridCenter.z),
+                cell.placement.z * cellSize - (sin * gridCenter.x + cos * gridCenter.z),
+                cell.placement.angle);
+        }
+
+        // Largest thick-wall corner inset of the shapes in the layout, for validating door widths.
+        public float GetCornerInsetPerThickness()
+        {
+            float inset = 0f;
+            foreach (CellShape shape in cells.Select(cell => cell.shape).Distinct())
+                inset = Math.Max(inset, CellShapes.GetTopology(shape).ThickWallCornerInsetPerThickness);
+            return inset;
+        }
+
         public LayoutLink GetLink(int cellID, int edge)
         {
             return links.FirstOrDefault(link => link.Involves(cellID, edge));

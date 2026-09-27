@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using CRG.Building;
 using CRG.Core;
 using CRG.Generation;
 using CRG.Runtime;
@@ -9,13 +10,15 @@ using Object = UnityEngine.Object;
 
 namespace CRG.Geometry
 {
-    // Builds level geometry for a single-grid level (CellGrid) or a mixed-grid level (MixedLevel).
-    // Both are handled as room parts: cells of one grid plus the placement that moves them into the level.
-    // A single-grid level is one part in place; a mixed level has one part per placed room.
+    // Builds level geometry for a single-grid level (CellGrid), a mixed-grid level (MixedLevel) or a hand-built
+    // level (LevelLayout). All are handled as room parts: cells of one grid plus the placement that moves them into
+    // the level. A single-grid level is one part in place; a mixed level has one part per placed room; a hand-built
+    // level has one part per cell, since its cells each come from their own grid.
     public class LevelGeometryGenerator
     {
         private readonly CellGrid grid;
         private readonly MixedLevel mixedLevel;
+        private readonly LevelLayout handBuilt;
         private readonly float cellSize;
         private readonly float wallHeight;
         private readonly float doorHeight;
@@ -33,6 +36,10 @@ namespace CRG.Geometry
         // For mixed levels: every edge shared by two rooms, keyed from both sides.
         private Dictionary<(int, CellCoord, int), RoomLink> linksByEdge;
 
+        // For hand-built levels: rooms (cells joined by open edges) and thick-wall depths across all cells.
+        private LayoutRooms handBuiltRooms;
+        private LayoutWallLayout handBuiltWalls;
+
         // One grid's worth of cells to build, with the rules that differ between single-grid and mixed levels.
         private class RoomPart
         {
@@ -45,27 +52,37 @@ namespace CRG.Geometry
             public Func<GridCell, int, bool> BuildsThinWall;
             // Flags of the edge as seen from both sides (a door on either side makes it a door).
             public Func<GridCell, int, WallFlag> CombinedFlag;
-            public WallLayout Layout;
+            public IWallLayout Layout;
+            // Whether a wall faces empty space (full thickness plus an outer face) rather than another cell.
+            public Func<CellCoord, int, bool> IsExterior;
         }
 
         // wallThickness 0 builds zero-thickness double-sided walls; above 0 builds solid walls of that thickness.
         public LevelGeometryGenerator(CellGrid grid, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f,
             float wallThickness = 0f, bool addCeiling = false)
-            : this(grid, null, grid.CellSize, wallHeight, doorHeight, doorWidthRatio, wallThickness, addCeiling)
+            : this(grid, null, null, grid.CellSize, wallHeight, doorHeight, doorWidthRatio, wallThickness, addCeiling)
         {
         }
 
         public LevelGeometryGenerator(MixedLevel mixedLevel, float wallHeight = 3f, float doorHeight = 2.5f, float doorWidthRatio = 0.2f,
             float wallThickness = 0f, bool addCeiling = false)
-            : this(null, mixedLevel, mixedLevel.CellSize, wallHeight, doorHeight, doorWidthRatio, wallThickness, addCeiling)
+            : this(null, mixedLevel, null, mixedLevel.CellSize, wallHeight, doorHeight, doorWidthRatio, wallThickness, addCeiling)
         {
         }
 
-        private LevelGeometryGenerator(CellGrid grid, MixedLevel mixedLevel, float cellSize, float wallHeight, float doorHeight,
-            float doorWidthRatio, float wallThickness, bool addCeiling)
+        // A hand-built layout is stored in units of the cell size; cellSize scales it into the level.
+        public LevelGeometryGenerator(LevelLayout layout, float cellSize, float wallHeight = 3f, float doorHeight = 2.5f,
+            float doorWidthRatio = 0.2f, float wallThickness = 0f, bool addCeiling = false)
+            : this(null, null, layout, cellSize, wallHeight, doorHeight, doorWidthRatio, wallThickness, addCeiling)
+        {
+        }
+
+        private LevelGeometryGenerator(CellGrid grid, MixedLevel mixedLevel, LevelLayout handBuilt, float cellSize, float wallHeight,
+            float doorHeight, float doorWidthRatio, float wallThickness, bool addCeiling)
         {
             this.grid = grid;
             this.mixedLevel = mixedLevel;
+            this.handBuilt = handBuilt;
             this.cellSize = cellSize;
             this.wallHeight = wallHeight;
             this.doorHeight = doorHeight;
@@ -82,6 +99,12 @@ namespace CRG.Geometry
                     linksByEdge[(link.RoomB, link.CellB, link.EdgeB)] = link;
                 }
             }
+
+            if (handBuilt != null)
+            {
+                handBuiltRooms = handBuilt.GetRooms();
+                handBuiltWalls = new LayoutWallLayout(handBuilt, this.wallThickness);
+            }
         }
 
         public static LevelGeometryGenerator FromParameters(CellGrid grid, GenerationParameters parameters)
@@ -97,6 +120,15 @@ namespace CRG.Geometry
         {
             return new LevelGeometryGenerator(mixedLevel, parameters.WallHeight, parameters.DoorHeight, parameters.DoorWidthRatio,
                 parameters.WallThickness, parameters.AddCeiling)
+            {
+                options = parameters
+            };
+        }
+
+        public static LevelGeometryGenerator FromParameters(LevelLayout layout, GenerationParameters parameters)
+        {
+            return new LevelGeometryGenerator(layout, parameters.CellSize, parameters.WallHeight, parameters.DoorHeight,
+                parameters.DoorWidthRatio, parameters.WallThickness, parameters.AddCeiling)
             {
                 options = parameters
             };
@@ -126,9 +158,9 @@ namespace CRG.Geometry
         {
             GameObject levelRoot = new GameObject("Generated Level (By Room)");
 
-            foreach (RoomPart part in GetPartsByRoom())
+            foreach ((string name, List<RoomPart> parts) in GetRoomGroups())
             {
-                GameObject roomObject = BuildMesh(part.Name, new List<RoomPart> { part }, includeFloors: true, includeWalls: true, includeCeiling: addCeiling);
+                GameObject roomObject = BuildMesh(name, parts, includeFloors: true, includeWalls: true, includeCeiling: addCeiling);
                 if (roomObject != null)
                 {
                     roomObject.transform.SetParent(levelRoot.transform, false);
@@ -136,6 +168,12 @@ namespace CRG.Geometry
             }
 
             return FinishLevel(levelRoot);
+        }
+
+        // The level mesh alone, without level data or any post-processing (for previews).
+        public GameObject GenerateMeshOnly(string name)
+        {
+            return BuildMesh(name, GetParts(), includeFloors: true, includeWalls: true, includeCeiling: addCeiling);
         }
 
         public GameObject GenerateFloorOnly()
@@ -188,6 +226,8 @@ namespace CRG.Geometry
             CRGLevelData data = level.AddComponent<CRGLevelData>();
             if (mixedLevel != null)
                 data.Initialize(mixedLevel, wallHeight, doorHeight, doorWidthRatio, addCeiling);
+            else if (handBuilt != null)
+                data.Initialize(handBuilt, cellSize, wallHeight, doorHeight, doorWidthRatio, addCeiling);
             else
                 data.Initialize(grid, wallHeight, doorHeight, doorWidthRatio, addCeiling);
 
@@ -274,6 +314,9 @@ namespace CRG.Geometry
             if (mixedLevel != null)
                 return GetPartsByRoom();
 
+            if (handBuilt != null)
+                return handBuilt.Cells.Select(HandBuiltPart).ToList();
+
             return new List<RoomPart> { SingleGridPart("Generated Level", grid.GetAllCells().Where(cell => cell.IsPartOfRoom())) };
         }
 
@@ -287,8 +330,22 @@ namespace CRG.Geometry
                 .ToList();
         }
 
+        // The parts of each room, for building one mesh per room.
+        private List<(string, List<RoomPart>)> GetRoomGroups()
+        {
+            if (handBuilt != null)
+            {
+                return handBuiltRooms.Rooms
+                    .Select((cells, room) => ($"Room_{room}", cells.Select(id => HandBuiltPart(handBuilt.GetCell(id))).ToList()))
+                    .ToList();
+            }
+
+            return GetPartsByRoom().Select(part => (part.Name, new List<RoomPart> { part })).ToList();
+        }
+
         private RoomPart SingleGridPart(string name, IEnumerable<GridCell> cells)
         {
+            WallLayout layout = new WallLayout(grid, wallThickness);
             return new RoomPart
             {
                 Name = name,
@@ -309,7 +366,8 @@ namespace CRG.Geometry
                         flag |= neighbor.GetEdgeFlag(grid.Topology.GetNeighborEdge(cell.Coordinate, edge));
                     return flag;
                 },
-                Layout = new WallLayout(grid, wallThickness)
+                Layout = layout,
+                IsExterior = layout.IsExterior
             };
         }
 
@@ -317,6 +375,7 @@ namespace CRG.Geometry
         private RoomPart MixedRoomPart(PlacedRoom room)
         {
             int roomID = room.RoomID;
+            WallLayout layout = new WallLayout(room.Grid, wallThickness, (cell, edge) => !linksByEdge.ContainsKey((roomID, cell, edge)));
             return new RoomPart
             {
                 Name = $"Room_{roomID}",
@@ -328,8 +387,57 @@ namespace CRG.Geometry
                 BuildsThinWall = (cell, edge) =>
                     !linksByEdge.TryGetValue((roomID, cell.Coordinate, edge), out RoomLink link) || Math.Min(link.RoomA, link.RoomB) == roomID,
                 CombinedFlag = (cell, edge) => cell.GetEdgeFlag(edge),
-                Layout = new WallLayout(room.Grid, wallThickness, (cell, edge) => !linksByEdge.ContainsKey((roomID, cell, edge)))
+                Layout = layout,
+                IsExterior = layout.IsExterior
             };
+        }
+
+        // A hand-built cell is cell (0, 0) of its shape's own grid, moved into place. Its edge flags come from the
+        // layout's links: outer edges are walls, and a shared edge is a door, a wall or nothing (open).
+        private RoomPart HandBuiltPart(LayoutCell layoutCell)
+        {
+            int cellID = layoutCell.id;
+            IGridTopology topology = CellShapes.GetTopology(layoutCell.shape);
+            CellCoord coordinate = CellShapes.GetCell(layoutCell.shape);
+
+            CellGrid cellGrid = new CellGrid(topology, cellSize);
+            Room room = cellGrid.CreateRoom();
+            cellGrid.AssignCellToRoom(coordinate, room.RoomID);
+            GridCell cell = cellGrid.GetCell(coordinate);
+
+            for (int edge = 0; edge < cell.EdgeCount; edge++)
+                cell.SetEdgeFlag(edge, GetHandBuiltFlag(handBuilt.GetLink(cellID, edge)));
+
+            return new RoomPart
+            {
+                Name = $"Cell_{cellID}",
+                Grid = cellGrid,
+                Placement = LevelLayout.GetGridPlacement(layoutCell, cellSize),
+                Cells = new List<GridCell> { cell },
+                HasCeiling = _ => true,
+                // A shared wall is built once, by the older cell (cell A of the link).
+                BuildsThinWall = (_, edge) =>
+                {
+                    LayoutLink link = handBuilt.GetLink(cellID, edge);
+                    return link == null || link.cellA == cellID;
+                },
+                CombinedFlag = (gridCell, edge) => gridCell.GetEdgeFlag(edge),
+                Layout = handBuiltWalls.ForCell(cellID),
+                IsExterior = (_, edge) => handBuiltWalls.IsExterior(cellID, edge)
+            };
+        }
+
+        private static WallFlag GetHandBuiltFlag(LayoutLink link)
+        {
+            if (link == null)
+                return WallFlag.Wall;
+
+            switch (link.state)
+            {
+                case EdgeState.Door: return WallFlag.HasDoor;
+                case EdgeState.Wall: return WallFlag.Wall;
+                default: return WallFlag.NoWall;
+            }
         }
 
         private GameObject BuildMesh(string name, List<RoomPart> parts, bool includeFloors, bool includeWalls, bool includeCeiling)
@@ -396,7 +504,7 @@ namespace CRG.Geometry
         // the full thickness (plus an outer face) towards empty space. Doors are always between rooms.
         private void AddCellThickWalls(ProBuilderMeshBuilder builder, RoomPart part, GridCell cell)
         {
-            WallLayout layout = part.Layout;
+            IWallLayout layout = part.Layout;
             IGridTopology topology = part.Grid.Topology;
             CellCoord coordinate = cell.Coordinate;
 
@@ -405,7 +513,7 @@ namespace CRG.Geometry
                 if (layout.GetDepth(coordinate, edgeIndex) <= 0f)
                     continue;
 
-                bool exterior = layout.IsExterior(coordinate, edgeIndex);
+                bool exterior = part.IsExterior(coordinate, edgeIndex);
                 bool hasDoor = cell.GetEdgeFlag(edgeIndex).HasFlag(WallFlag.HasDoor) && !exterior;
                 ThickWallStrip strip = CellGeometry.GetThickWallStrip(topology, coordinate, edgeIndex, cellSize, layout);
                 builder.AddThickWall(strip, hasDoor, exterior, wallMaterial);

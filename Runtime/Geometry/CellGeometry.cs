@@ -50,6 +50,10 @@ namespace CRG.Geometry
         // For an open edge (no wall), the depth of the wall that wraps around one of its corners through cells
         // of the same room, or 0 when no wall touches that corner. atEndCorner selects the edge's end corner.
         float GetWrapDepth(CellCoord cell, int edge, bool atEndCorner);
+
+        // Half of the interior angle of the cell on the other side of an open edge, at the corner that atEndCorner
+        // selects (the edge runs the other way in that cell, so this edge's end corner is its start corner).
+        float GetAcrossCornerHalfAngle(CellCoord cell, int openEdge, bool atEndCorner, float cellSize);
     }
 
     // Triangle a cell adds at a corner where a wall wraps around it without the cell having a wall there.
@@ -65,6 +69,8 @@ namespace CRG.Geometry
     public static class CellGeometry
     {
         private const float MinSegmentSize = 0.001f;
+        // Half angles closer than this (radians) count as equal corners.
+        private const float SameAngleTolerance = 1e-4f;
 
         public static float CalculateDoorWidth(float edgeLength, float doorWidthRatio = 0.2f)
         {
@@ -262,23 +268,27 @@ namespace CRG.Geometry
             int corner = atEndCorner ? openEdge : (openEdge + edgeCount - 1) % edgeCount;
             int otherCorner = atEndCorner ? (openEdge + edgeCount - 1) % edgeCount : openEdge;
 
-            CellCoord neighbor = topology.GetNeighbor(coordinate, openEdge);
-            int neighborEdge = topology.GetNeighborEdge(coordinate, openEdge);
-            int neighborEdgeCount = topology.GetEdgeCount(neighbor);
-            // The shared edge runs the other way in the neighbor, so this end corner is its start corner and vice versa.
-            int neighborCorner = atEndCorner ? (neighborEdge + neighborEdgeCount - 1) % neighborEdgeCount : neighborEdge;
-
-            float halfAngle = Mathf.Min(
-                CornerHalfAngle(topology, coordinate, corner, cellSize),
-                CornerHalfAngle(topology, neighbor, neighborCorner, cellSize));
+            float ownHalfAngle = CornerHalfAngle(topology, coordinate, corner, cellSize);
+            float acrossHalfAngle = layout.GetAcrossCornerHalfAngle(coordinate, openEdge, atEndCorner, cellSize);
+            float halfAngle = Mathf.Min(ownHalfAngle, acrossHalfAngle);
 
             Vector3 center = topology.GetCellCenter(coordinate, cellSize);
             center.y = floorHeight;
             Vector3 cornerPosition = center + topology.GetCornerOffset(coordinate, corner, cellSize);
             Vector3 otherCornerPosition = center + topology.GetCornerOffset(coordinate, otherCorner, cellSize);
 
+            float factor = Mathf.Min(1f / Mathf.Tan(halfAngle), 1f / Mathf.Sin(2f * halfAngle));
+
+            // Cells of different shapes (hand-built levels) can meet at an open edge with different angles, for
+            // example a square and a triangle. The point must then also stay within each cell's own inner line,
+            // which crosses the edge at depth / sin(angle), or the wider cell's wall would bulge past its face.
+            // Equal angles (up to float noise) skip this, and in the regular tilings it never lowers the distance,
+            // so their geometry stays bit-identical.
+            if (Mathf.Abs(ownHalfAngle - acrossHalfAngle) > SameAngleTolerance)
+                factor = Mathf.Min(factor, Mathf.Min(1f / Mathf.Sin(2f * ownHalfAngle), 1f / Mathf.Sin(2f * acrossHalfAngle)));
+
             float wrapDepth = layout.GetWrapDepth(coordinate, openEdge, atEndCorner);
-            float distance = wrapDepth * Mathf.Min(1f / Mathf.Tan(halfAngle), 1f / Mathf.Sin(2f * halfAngle));
+            float distance = wrapDepth * factor;
             return cornerPosition + (otherCornerPosition - cornerPosition).normalized * distance;
         }
 

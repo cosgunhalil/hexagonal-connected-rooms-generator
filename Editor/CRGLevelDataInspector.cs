@@ -22,7 +22,14 @@ namespace CRG.Editor
             EditorGUILayout.LabelField("Level Summary", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Rooms", data.Rooms.Count.ToString());
             EditorGUILayout.LabelField("Doors", data.Doors.Count.ToString());
-            if (data.IsMixed)
+            if (data.IsHandBuilt)
+            {
+                string shapes = string.Join(", ", System.Linq.Enumerable.Select(
+                    System.Linq.Enumerable.GroupBy(System.Linq.Enumerable.SelectMany(data.Rooms, room => room.PlacedCells), cell => cell.GridType),
+                    group => $"{System.Linq.Enumerable.Count(group)} {group.Key}"));
+                EditorGUILayout.LabelField("Grid Type", $"Hand-built ({shapes})");
+            }
+            else if (data.IsMixed)
             {
                 string mix = string.Join(", ", System.Linq.Enumerable.Select(
                     System.Linq.Enumerable.GroupBy(data.Rooms, room => room.GridType),

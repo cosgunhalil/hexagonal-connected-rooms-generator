@@ -82,6 +82,16 @@ namespace CRG.Geometry
             return (acrossDepth * thisSteps + thisDepth * acrossSteps) / (acrossSteps + thisSteps);
         }
 
+        public float GetAcrossCornerHalfAngle(CellCoord cell, int openEdge, bool atEndCorner, float cellSize)
+        {
+            IGridTopology topology = grid.Topology;
+            CellCoord neighbor = topology.GetNeighbor(cell, openEdge);
+            int neighborEdge = topology.GetNeighborEdge(cell, openEdge);
+            int neighborEdgeCount = topology.GetEdgeCount(neighbor);
+            int neighborCorner = atEndCorner ? (neighborEdge + neighborEdgeCount - 1) % neighborEdgeCount : neighborEdge;
+            return CellGeometry.CornerHalfAngle(topology, neighbor, neighborCorner, cellSize);
+        }
+
         // Crosses the open edge and keeps turning around the corner until a cell has a wall there. Returns that
         // wall's depth and the number of wall-free cells passed on the way (0 when the first neighbor has it).
         private (float, int) WalkAround(CellCoord cell, int edge, bool atEndCorner)

@@ -158,6 +158,30 @@ namespace CRG.Generation
 
         public bool Validate(out string errorMessage)
         {
+            if (GridType == GridType.Mixed && GetTotalGridWeight() <= 0f)
+            {
+                errorMessage = "Mixed levels need at least one grid type weight above 0";
+                return false;
+            }
+
+            if (!ValidateGeometry(GetCornerInsetPerThickness(), out errorMessage))
+                return false;
+
+            return ValidateGeneration(out errorMessage);
+        }
+
+        // The settings a hand-built level uses: cell size, walls, doors and NavMesh. cornerInsetPerThickness is the
+        // largest thick-wall corner inset of the cell shapes it contains (see IGridTopology).
+        public bool ValidateHandBuilt(float cornerInsetPerThickness, out string errorMessage)
+        {
+            if (!ValidateGeometry(cornerInsetPerThickness, out errorMessage))
+                return false;
+
+            return ValidateNavMesh(out errorMessage);
+        }
+
+        private bool ValidateGeometry(float cornerInsetPerThickness, out string errorMessage)
+        {
             if (CellSize <= 0)
             {
                 errorMessage = "CellSize must be greater than 0";
@@ -189,19 +213,19 @@ namespace CRG.Generation
             }
 
             // Wall corners move the inner face of a wall inwards along the edge; the door opening must stay clear of them.
-            if (GridType == GridType.Mixed && GetTotalGridWeight() <= 0f)
-            {
-                errorMessage = "Mixed levels need at least one grid type weight above 0";
-                return false;
-            }
-
             if (WallThickness > 0f &&
-                (CellSize - CellSize * DoorWidthRatio) / 2f < WallThickness * GetCornerInsetPerThickness() + MinDoorClearance)
+                (CellSize - CellSize * DoorWidthRatio) / 2f < WallThickness * cornerInsetPerThickness + MinDoorClearance)
             {
                 errorMessage = "Doors are too wide for this WallThickness; lower DoorWidthRatio or WallThickness";
                 return false;
             }
 
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        private bool ValidateGeneration(out string errorMessage)
+        {
             if (CeilingChance < 0f || CeilingChance > 1f)
             {
                 errorMessage = "CeilingChance must be between 0 and 1";
@@ -262,11 +286,8 @@ namespace CRG.Generation
                 return false;
             }
 
-            if (BakeNavMesh && NavMeshGeometry == NavMeshGeometrySource.PhysicsColliders && !AddMeshCollider)
-            {
-                errorMessage = "Baking the NavMesh from colliders requires AddMeshCollider";
+            if (!ValidateNavMesh(out errorMessage))
                 return false;
-            }
 
             if (MaxIterations <= 0)
             {
@@ -277,6 +298,18 @@ namespace CRG.Generation
             if (MaxRetriesPerRoom <= 0)
             {
                 errorMessage = "MaxRetriesPerRoom must be greater than 0";
+                return false;
+            }
+
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        private bool ValidateNavMesh(out string errorMessage)
+        {
+            if (BakeNavMesh && NavMeshGeometry == NavMeshGeometrySource.PhysicsColliders && !AddMeshCollider)
+            {
+                errorMessage = "Baking the NavMesh from colliders requires AddMeshCollider";
                 return false;
             }
 

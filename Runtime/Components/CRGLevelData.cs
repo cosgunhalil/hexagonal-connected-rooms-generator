@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Serialization;
+using CRG.Building;
 using CRG.Core;
 using CRG.Generation;
 
@@ -37,7 +39,19 @@ namespace CRG.Runtime
             [Tooltip("Mixed-grid levels only: where the room's own grid sits in the level")]
             public RoomPlacement Placement;
 
+            [Tooltip("Hand-built levels only: the grid type and placement of each cell (Cells hold the layout cell IDs as x)")]
+            public List<PlacedCellData> PlacedCells = new List<PlacedCellData>();
+
             public bool IsDeadEnd => ConnectedRoomIDs.Count == 1;
+        }
+
+        // A cell of a hand-built level: cell (0, 0) of its own grid, moved into the level by Placement.
+        [Serializable]
+        public class PlacedCellData
+        {
+            public int CellID;
+            public GridType GridType;
+            public RoomPlacement Placement;
         }
 
         [Serializable]
@@ -60,6 +74,8 @@ namespace CRG.Runtime
         [SerializeField, HideInInspector] private GridType gridType = GridType.Hexagon;
         // Mixed-grid level: every room has its own grid type and placement (RoomData.GridType / Placement).
         [SerializeField, HideInInspector] private bool mixed;
+        // Hand-built level: every cell has its own grid type and placement (RoomData.PlacedCells).
+        [SerializeField, HideInInspector] private bool handBuilt;
         [SerializeField, HideInInspector, FormerlySerializedAs("hexSize")] private float cellSize;
         [SerializeField, HideInInspector] private float wallHeight;
         [SerializeField, HideInInspector] private float doorHeight;
@@ -72,6 +88,7 @@ namespace CRG.Runtime
         // The level's grid for single-grid levels. Mixed levels have one per room: use GetTopology(room).
         public IGridTopology Topology => GridTopology.Get(gridType);
         public bool IsMixed => mixed;
+        public bool IsHandBuilt => handBuilt;
         public float WallHeight => wallHeight;
         public float DoorHeight => doorHeight;
         public IReadOnlyList<RoomData> Rooms => rooms;
@@ -83,6 +100,7 @@ namespace CRG.Runtime
         public void Initialize(CellGrid grid, float wallHeight, float doorHeight, float doorWidthRatio, bool ceilingsEnabled = false)
         {
             mixed = false;
+            handBuilt = false;
             gridType = grid.Topology.Type;
             cellSize = grid.CellSize;
             this.wallHeight = wallHeight;
@@ -127,6 +145,7 @@ namespace CRG.Runtime
         public void Initialize(MixedLevel level, float wallHeight, float doorHeight, float doorWidthRatio, bool ceilingsEnabled = false)
         {
             mixed = true;
+            handBuilt = false;
             gridType = level.Rooms.Count > 0 ? level.Rooms[0].GridType : GridType.Hexagon;
             cellSize = level.CellSize;
             this.wallHeight = wallHeight;
@@ -162,6 +181,68 @@ namespace CRG.Runtime
                     EdgeA = aFirst ? link.EdgeA : link.EdgeB
                 });
             }
+
+            AssignRoles();
+        }
+
+        // Rooms are the layout's rooms (cells joined by open edges); every door link becomes a door, also one between
+        // two cells of the same room. A cell is stored as CellCoord(cell ID, 0) with its grid in RoomData.PlacedCells.
+        public void Initialize(LevelLayout layout, float cellSize, float wallHeight, float doorHeight, float doorWidthRatio, bool ceilingsEnabled = false)
+        {
+            mixed = false;
+            handBuilt = true;
+            gridType = layout.Cells.Count > 0 ? CellShapes.GetGridType(layout.Cells[0].shape) : GridType.Hexagon;
+            this.cellSize = cellSize;
+            this.wallHeight = wallHeight;
+            this.doorHeight = doorHeight;
+            this.doorWidthRatio = doorWidthRatio;
+            rooms.Clear();
+            doors.Clear();
+
+            LayoutRooms layoutRooms = layout.GetRooms();
+            for (int room = 0; room < layoutRooms.Rooms.Count; room++)
+            {
+                RoomData roomData = new RoomData { RoomID = room, HasCeiling = ceilingsEnabled };
+                foreach (int id in layoutRooms.Rooms[room])
+                {
+                    LayoutCell cell = layout.GetCell(id);
+                    roomData.Cells.Add(new CellCoord(id, 0));
+                    roomData.PlacedCells.Add(new PlacedCellData
+                    {
+                        CellID = id,
+                        GridType = CellShapes.GetGridType(cell.shape),
+                        Placement = LevelLayout.GetGridPlacement(cell, cellSize)
+                    });
+                }
+                rooms.Add(roomData);
+            }
+
+            foreach (LayoutLink link in layout.Links.Where(link => link.state == EdgeState.Door))
+            {
+                int roomA = layoutRooms.RoomOfCell[link.cellA];
+                int roomB = layoutRooms.RoomOfCell[link.cellB];
+                bool aFirst = roomA <= roomB;
+
+                // Each door is stored once, seen from the room with the lower ID.
+                doors.Add(new DoorData
+                {
+                    RoomA = aFirst ? roomA : roomB,
+                    RoomB = aFirst ? roomB : roomA,
+                    CellA = new CellCoord(aFirst ? link.cellA : link.cellB, 0),
+                    EdgeA = aFirst ? link.edgeA : link.edgeB
+                });
+
+                if (roomA != roomB)
+                {
+                    if (!rooms[roomA].ConnectedRoomIDs.Contains(roomB))
+                        rooms[roomA].ConnectedRoomIDs.Add(roomB);
+                    if (!rooms[roomB].ConnectedRoomIDs.Contains(roomA))
+                        rooms[roomB].ConnectedRoomIDs.Add(roomA);
+                }
+            }
+
+            foreach (RoomData room in rooms)
+                room.ConnectedRoomIDs.Sort();
 
             AssignRoles();
         }
@@ -227,22 +308,42 @@ namespace CRG.Runtime
             return Topology.GetCellCenter(cell, cellSize);
         }
 
+        // The room's grid. The cells of a hand-built room can have different shapes: use GetTopology(room, cell).
         public IGridTopology GetTopology(RoomData room)
         {
-            return mixed ? GridTopology.Get(room.GridType) : Topology;
+            return Resolve(room, room.Cells.Count > 0 ? room.Cells[0] : default).topology;
+        }
+
+        public IGridTopology GetTopology(RoomData room, CellCoord cell)
+        {
+            return Resolve(room, cell).topology;
         }
 
         public Vector3 GetCellLocalPosition(RoomData room, CellCoord cell)
         {
-            return ToLevelPoint(room, GetTopology(room).GetCellCenter(cell, cellSize));
+            CellFrame frame = Resolve(room, cell);
+            return frame.ToLevelPoint(frame.topology.GetCellCenter(frame.cell, cellSize));
         }
 
         // Corner of a cell in the level's local space; scale shrinks it towards the cell center (1 = true corner).
         public Vector3 GetCellCornerLocal(RoomData room, CellCoord cell, int corner, float scale = 1f)
         {
-            IGridTopology topology = GetTopology(room);
-            Vector3 local = topology.GetCellCenter(cell, cellSize) + topology.GetCornerOffset(cell, corner, cellSize) * scale;
-            return ToLevelPoint(room, local);
+            CellFrame frame = Resolve(room, cell);
+            Vector3 local = frame.topology.GetCellCenter(frame.cell, cellSize) + frame.topology.GetCornerOffset(frame.cell, corner, cellSize) * scale;
+            return frame.ToLevelPoint(local);
+        }
+
+        public int GetCellEdgeCount(RoomData room, CellCoord cell)
+        {
+            CellFrame frame = Resolve(room, cell);
+            return frame.topology.GetEdgeCount(frame.cell);
+        }
+
+        // Distance from the cell center to its nearest edge.
+        public float GetCellInnerRadius(RoomData room, CellCoord cell)
+        {
+            CellFrame frame = Resolve(room, cell);
+            return frame.topology.GetInnerRadius(frame.cell, cellSize);
         }
 
         // The room cell closest to the room's centroid, so the anchor always lies inside the room.
@@ -279,38 +380,63 @@ namespace CRG.Runtime
         // Center of the door opening at floor level.
         public Vector3 GetDoorCenterLocal(DoorData door)
         {
-            RoomData room = GetRoom(door.RoomA);
-            IGridTopology topology = GetTopology(room);
-            Vector3 local = topology.GetCellCenter(door.CellA, cellSize) + topology.GetEdgeCenterOffset(door.CellA, door.EdgeA, cellSize);
-            return ToLevelPoint(room, local);
+            CellFrame frame = Resolve(GetRoom(door.RoomA), door.CellA);
+            Vector3 local = frame.topology.GetCellCenter(frame.cell, cellSize) + frame.topology.GetEdgeCenterOffset(frame.cell, door.EdgeA, cellSize);
+            return frame.ToLevelPoint(local);
         }
 
         // Horizontal direction through the door, pointing from RoomA into RoomB.
         public Vector3 GetDoorForwardLocal(DoorData door)
         {
-            RoomData room = GetRoom(door.RoomA);
-            return ToLevelDirection(room, GetTopology(room).GetEdgeNormal(door.CellA, door.EdgeA));
+            CellFrame frame = Resolve(GetRoom(door.RoomA), door.CellA);
+            return frame.ToLevelDirection(frame.topology.GetEdgeNormal(frame.cell, door.EdgeA));
         }
 
         // Endpoints of the door opening at floor level.
         public (Vector3, Vector3) GetDoorOpeningLocal(DoorData door)
         {
-            RoomData room = GetRoom(door.RoomA);
+            CellFrame frame = Resolve(GetRoom(door.RoomA), door.CellA);
             Vector3 center = GetDoorCenterLocal(door);
-            (Vector3 start, Vector3 end) = GetTopology(room).GetEdgeOffsets(door.CellA, door.EdgeA, cellSize);
-            Vector3 halfWidth = ToLevelDirection(room, (end - start).normalized) * (cellSize * doorWidthRatio / 2f);
+            (Vector3 start, Vector3 end) = frame.topology.GetEdgeOffsets(frame.cell, door.EdgeA, cellSize);
+            Vector3 halfWidth = frame.ToLevelDirection((end - start).normalized) * (cellSize * doorWidthRatio / 2f);
 
             return (center - halfWidth, center + halfWidth);
         }
 
-        private Vector3 ToLevelPoint(RoomData room, Vector3 local)
+        // Where a stored cell lives: its grid, its coordinate in that grid, and how that grid is moved into the level.
+        private readonly struct CellFrame
         {
-            return mixed ? room.Placement.TransformPoint(local) : local;
+            public readonly IGridTopology topology;
+            public readonly CellCoord cell;
+            private readonly RoomPlacement placement;
+            private readonly bool placed;
+
+            public CellFrame(IGridTopology topology, CellCoord cell, RoomPlacement placement, bool placed)
+            {
+                this.topology = topology;
+                this.cell = cell;
+                this.placement = placement;
+                this.placed = placed;
+            }
+
+            public Vector3 ToLevelPoint(Vector3 local) => placed ? placement.TransformPoint(local) : local;
+
+            public Vector3 ToLevelDirection(Vector3 local) => placed ? placement.TransformDirection(local) : local;
         }
 
-        private Vector3 ToLevelDirection(RoomData room, Vector3 local)
+        private CellFrame Resolve(RoomData room, CellCoord cell)
         {
-            return mixed ? room.Placement.TransformDirection(local) : local;
+            if (handBuilt)
+            {
+                PlacedCellData placedCell = room.PlacedCells.Find(c => c.CellID == cell.x);
+                if (placedCell != null)
+                    return new CellFrame(GridTopology.Get(placedCell.GridType), new CellCoord(0, 0), placedCell.Placement, true);
+            }
+
+            if (mixed)
+                return new CellFrame(GridTopology.Get(room.GridType), cell, room.Placement, true);
+
+            return new CellFrame(Topology, cell, RoomPlacement.Identity, false);
         }
     }
 }

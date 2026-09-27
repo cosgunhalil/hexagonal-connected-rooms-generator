@@ -52,6 +52,19 @@ namespace CRG.Geometry
 #endif
         }
 
+        // A baked NavMesh stays where its level was at bake time; call this after moving the level to move it along.
+        public static void RefreshPlacement(GameObject level)
+        {
+#if CRG_AI_NAVIGATION
+            NavMeshSurface surface = level.GetComponent<NavMeshSurface>();
+            if (surface == null || surface.navMeshData == null)
+                return;
+
+            surface.RemoveData();
+            surface.AddData();
+#endif
+        }
+
         // Doors narrower than the agent's diameter or lower than its height leave rooms unreachable.
         public static bool DoorsFitAgent(GenerationParameters parameters, out string message)
         {

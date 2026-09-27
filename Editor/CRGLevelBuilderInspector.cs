@@ -27,6 +27,15 @@ namespace CRG.Editor
             nameof(GenerationParameters.CreateSpawnPoints)
         };
 
+        private static readonly string[] OutputProperties =
+        {
+            nameof(CRGLevelBuilder.floorMaterial),
+            nameof(CRGLevelBuilder.wallMaterial),
+            nameof(CRGLevelBuilder.ceilingMaterial),
+            nameof(CRGLevelBuilder.doorPrefab),
+            nameof(CRGLevelBuilder.showPreview)
+        };
+
         private SerializedProperty parametersAsset;
         private SerializedProperty parameters;
 
@@ -42,6 +51,7 @@ namespace CRG.Editor
 
             DrawToolButton();
             DrawLayoutSummary(builder);
+            DrawBake(builder);
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Settings", EditorStyles.boldLabel);
@@ -70,11 +80,49 @@ namespace CRG.Editor
                 }
             }
 
+            EditorGUILayout.Space();
+            foreach (string name in OutputProperties)
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(name));
+
             bool changed = EditorGUI.EndChangeCheck();
             serializedObject.ApplyModifiedProperties();
 
             if (changed)
+            {
+                builder.RequestPreviewRebuild();
                 SceneView.RepaintAll();
+            }
+
+            if (builder.parametersAsset != null && GUILayout.Button("Refresh Preview", EditorStyles.miniButton))
+                builder.RebuildPreview();
+        }
+
+        private static void DrawBake(CRGLevelBuilder builder)
+        {
+            bool valid = builder.Validate(out string error);
+            if (!valid)
+                EditorGUILayout.HelpBox($"Invalid settings: {error}", MessageType.Error);
+
+            if (builder.Parameters != null)
+            {
+                CRGEditorGUI.NavMeshWarnings(builder.Parameters);
+
+                if (builder.Parameters.BakeNavMesh && builder.transform.lossyScale != Vector3.one)
+                    EditorGUILayout.HelpBox("The NavMesh doesn't follow the builder's scale; change Cell Size instead of scaling the builder.", MessageType.Warning);
+            }
+
+            using (new EditorGUI.DisabledScope(builder.Layout.IsEmpty || !valid))
+            {
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button(new GUIContent("Bake Level", "Create a level GameObject with one mesh, level data and the gameplay extras"), GUILayout.Height(26)))
+                    CRGLevelBuilderActions.Bake(builder, false);
+                if (GUILayout.Button(new GUIContent("Bake Separate Rooms", "Create a level GameObject with one mesh per room"), GUILayout.Height(26)))
+                    CRGLevelBuilderActions.Bake(builder, true);
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (!builder.showPreview && !builder.Layout.IsEmpty)
+                EditorGUILayout.HelpBox("The geometry preview is hidden (it is hidden after baking so it doesn't overlap the baked level). Edit the layout or turn on Show Preview to see it again.", MessageType.None);
         }
 
         private static void DrawToolButton()

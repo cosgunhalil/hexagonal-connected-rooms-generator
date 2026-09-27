@@ -19,7 +19,7 @@ namespace CRG.Editor
     {
         private const float EdgePickDistance = 0.2f;
         private const float PanelWidth = 290f;
-        private const float PanelHeight = 200f;
+        private const float PanelHeight = 250f;
         private const string ShapePrefKey = "CRG.LevelBuilder.Shape";
 
         private static readonly Color FitsColor = new Color(0.3f, 1f, 0.45f);
@@ -189,9 +189,7 @@ namespace CRG.Editor
             switch (hoverKind)
             {
                 case HoverKind.FirstCell:
-                    Undo.RecordObject(builder, "Place First CRG Cell");
-                    selectedCell = layout.AddFirstCell(Shape).id;
-                    EditorUtility.SetDirty(builder);
+                    CRGLevelBuilderActions.Edit(builder, "Place First CRG Cell", () => selectedCell = layout.AddFirstCell(Shape).id);
                     break;
 
                 case HoverKind.Attach:
@@ -200,17 +198,14 @@ namespace CRG.Editor
                         message = hoverPlan?.FailureReason ?? "It doesn't fit there";
                         break;
                     }
-                    Undo.RecordObject(builder, $"Attach CRG {Shape}");
-                    selectedCell = layout.Attach(hoverPlan).id;
-                    EditorUtility.SetDirty(builder);
+                    AttachPlan plan = hoverPlan;
+                    CRGLevelBuilderActions.Edit(builder, $"Attach CRG {Shape}", () => selectedCell = layout.Attach(plan).id);
                     break;
 
                 case HoverKind.SharedEdge:
                     LayoutLink link = layout.GetLink(hoverCell, hoverEdge);
                     EdgeState next = LevelLayout.GetNextState(link.state);
-                    Undo.RecordObject(builder, $"Set CRG Edge to {next}");
-                    link.state = next;
-                    EditorUtility.SetDirty(builder);
+                    CRGLevelBuilderActions.Edit(builder, $"Set CRG Edge to {next}", () => link.state = next);
                     break;
 
                 case HoverKind.Cell:
@@ -234,9 +229,8 @@ namespace CRG.Editor
                 return;
             }
 
-            Undo.RecordObject(builder, "Remove CRG Cell");
-            layout.Remove(selectedCell);
-            EditorUtility.SetDirty(builder);
+            int removed = selectedCell;
+            CRGLevelBuilderActions.Edit(builder, "Remove CRG Cell", () => layout.Remove(removed));
             selectedCell = -1;
             message = null;
         }
@@ -335,9 +329,12 @@ namespace CRG.Editor
                     unreachable = $"{rooms.Unreachable.Count} room(s) can't be reached from the start room";
             }
 
+            bool valid = builder.Validate(out string error);
+
             GUILayout.Label(stats, EditorStyles.miniLabel);
-            GUIStyle unreachableStyle = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = CRGLevelBuilderDrawing.UnreachableColor } };
-            GUILayout.Label(unreachable, unreachableStyle);
+            GUIStyle warningStyle = new GUIStyle(EditorStyles.wordWrappedMiniLabel) { normal = { textColor = CRGLevelBuilderDrawing.UnreachableColor } };
+            GUILayout.Label(unreachable, warningStyle);
+            GUILayout.Label(valid ? string.Empty : $"Settings: {error}", warningStyle);
 
             GUILayout.BeginHorizontal();
             using (new EditorGUI.DisabledScope(selectedCell < 0))
@@ -350,12 +347,20 @@ namespace CRG.Editor
                 if (GUILayout.Button("Clear All", EditorStyles.miniButton) &&
                     EditorUtility.DisplayDialog("Clear Layout", "Remove every cell of this level?", "Clear", "Cancel"))
                 {
-                    Undo.RecordObject(builder, "Clear CRG Layout");
-                    layout.Clear();
-                    EditorUtility.SetDirty(builder);
+                    CRGLevelBuilderActions.Edit(builder, "Clear CRG Layout", layout.Clear);
                     selectedCell = -1;
                     message = null;
                 }
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(layout.IsEmpty || !valid))
+            {
+                if (GUILayout.Button(new GUIContent("Bake", "Create a level GameObject with one mesh"), EditorStyles.miniButton))
+                    CRGLevelBuilderActions.Bake(builder, false);
+                if (GUILayout.Button(new GUIContent("Bake Separate Rooms", "Create a level GameObject with one mesh per room"), EditorStyles.miniButton))
+                    CRGLevelBuilderActions.Bake(builder, true);
             }
             GUILayout.EndHorizontal();
 
