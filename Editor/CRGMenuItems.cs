@@ -19,6 +19,25 @@ namespace CRG.Editor
             Selection.activeObject = go;
         }
 
+        [MenuItem("GameObject/CRG/Create Level Builder", false, 11)]
+        public static void CreateLevelBuilder(MenuCommand menuCommand)
+        {
+            GameObject go = new GameObject("Level Builder");
+            var builder = go.AddComponent<CRG.Runtime.CRGLevelBuilder>();
+            builder.parameters = GenerationParameters.CreateDefault();
+
+            GameObjectUtility.SetParentAndAlign(go, menuCommand.context as GameObject);
+            Undo.RegisterCreatedObjectUndo(go, "Create Level Builder");
+            Selection.activeObject = go;
+
+            // The tool needs the new selection to be applied first.
+            EditorApplication.delayCall += () =>
+            {
+                if (Selection.activeGameObject == go)
+                    UnityEditor.EditorTools.ToolManager.SetActiveTool<CRGLevelBuilderTool>();
+            };
+        }
+
         [MenuItem("Assets/Create/CRG/Generation Parameters")]
         public static void CreateGenerationParameters()
         {
