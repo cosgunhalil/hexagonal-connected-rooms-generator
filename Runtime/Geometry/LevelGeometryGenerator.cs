@@ -151,8 +151,12 @@ namespace CRG.Geometry
 
         public GameObject GenerateLevel()
         {
-            return FinishLevel(BuildMesh("Generated Level", GetParts(), includeFloors: true, includeWalls: true, includeCeiling: addCeiling));
+            return FinishLevel(BuildMesh("Generated Level", GetParts(), includeFloors: true, includeWalls: true, includeCeiling: AnyCeilings));
         }
+
+        // Whether any room can get a ceiling: the level setting, or (hand-built levels) a room that turns it on.
+        private bool AnyCeilings =>
+            addCeiling || (handBuilt != null && Enumerable.Range(0, handBuiltRooms.Rooms.Count).Any(room => handBuiltRooms.HasCeiling(room, addCeiling)));
 
         public GameObject GenerateLevelSeparateByRoom()
         {
@@ -160,7 +164,7 @@ namespace CRG.Geometry
 
             foreach ((string name, List<RoomPart> parts) in GetRoomGroups())
             {
-                GameObject roomObject = BuildMesh(name, parts, includeFloors: true, includeWalls: true, includeCeiling: addCeiling);
+                GameObject roomObject = BuildMesh(name, parts, includeFloors: true, includeWalls: true, includeCeiling: AnyCeilings);
                 if (roomObject != null)
                 {
                     roomObject.transform.SetParent(levelRoot.transform, false);
@@ -173,7 +177,7 @@ namespace CRG.Geometry
         // The level mesh alone, without level data or any post-processing (for previews).
         public GameObject GenerateMeshOnly(string name)
         {
-            return BuildMesh(name, GetParts(), includeFloors: true, includeWalls: true, includeCeiling: addCeiling);
+            return BuildMesh(name, GetParts(), includeFloors: true, includeWalls: true, includeCeiling: AnyCeilings);
         }
 
         public GameObject GenerateFloorOnly()
@@ -272,10 +276,15 @@ namespace CRG.Geometry
 
             foreach (CRGLevelData.RoomData room in data.Rooms)
             {
-                Transform spawnPoint = CreateChild(parent, $"Spawn_Room_{room.RoomID}");
+                Transform spawnPoint = CreateChild(parent, $"Spawn_Room_{room.RoomID}{NameSuffix(room.Name)}");
                 spawnPoint.localPosition = data.GetRoomAnchorLocalPosition(room);
                 room.SpawnPoint = spawnPoint;
             }
+        }
+
+        private static string NameSuffix(string roomName)
+        {
+            return string.IsNullOrEmpty(roomName) ? string.Empty : $"_{roomName}";
         }
 
         private void PlaceDoors(GameObject level, CRGLevelData data)
@@ -336,7 +345,8 @@ namespace CRG.Geometry
             if (handBuilt != null)
             {
                 return handBuiltRooms.Rooms
-                    .Select((cells, room) => ($"Room_{room}", cells.Select(id => HandBuiltPart(handBuilt.GetCell(id))).ToList()))
+                    .Select((cells, room) => ($"Room_{room}{NameSuffix(handBuiltRooms.Settings[room].roomName)}",
+                        cells.Select(id => HandBuiltPart(handBuilt.GetCell(id))).ToList()))
                     .ToList();
             }
 
@@ -414,7 +424,7 @@ namespace CRG.Geometry
                 Grid = cellGrid,
                 Placement = LevelLayout.GetGridPlacement(layoutCell, cellSize),
                 Cells = new List<GridCell> { cell },
-                HasCeiling = _ => true,
+                HasCeiling = _ => handBuiltRooms.HasCeiling(handBuiltRooms.RoomOfCell[cellID], addCeiling),
                 // A shared wall is built once, by the older cell (cell A of the link).
                 BuildsThinWall = (_, edge) =>
                 {

@@ -130,6 +130,78 @@ namespace CRG.Tests
         }
 
         [Test]
+        public void RoomSettings_ComeFromTheOldestCell_ThroughMergesAndSplits()
+        {
+            LevelLayout layout = new LevelLayout();
+            LayoutCell a = layout.AddFirstCell(CellShape.Square);
+            LayoutCell b = layout.Attach(a.id, 0, CellShape.Square);
+            a.roomName = "Hall";
+            a.roomCeiling = RoomCeiling.Off;
+            b.roomName = "Boss";
+            b.roomTag = "Boss";
+            b.roomCeiling = RoomCeiling.On;
+
+            LayoutRooms rooms = layout.GetRooms();
+            Assert.AreEqual("Hall", rooms.Settings[0].roomName);
+            Assert.AreEqual("Boss", rooms.Settings[1].roomTag);
+            Assert.IsFalse(rooms.HasCeiling(0, true), "Off wins over the level setting");
+            Assert.IsTrue(rooms.HasCeiling(1, false), "On wins over the level setting");
+
+            layout.Links[0].state = EdgeState.Open;
+            rooms = layout.GetRooms();
+            Assert.AreEqual(1, rooms.Rooms.Count);
+            Assert.AreEqual("Hall", rooms.Settings[0].roomName, "The older room's settings win when rooms merge");
+
+            layout.Links[0].state = EdgeState.Wall;
+            rooms = layout.GetRooms();
+            Assert.AreEqual("Boss", rooms.Settings[1].roomName, "A split room gets its oldest cell's settings back");
+
+            b.roomCeiling = RoomCeiling.LevelSetting;
+            Assert.IsTrue(layout.GetRooms().HasCeiling(1, true));
+            Assert.IsFalse(layout.GetRooms().HasCeiling(1, false));
+        }
+
+        [Test]
+        public void StartAndEndRooms_AreAutomaticOrChosen()
+        {
+            // A straight chain of four squares joined by doors.
+            LevelLayout layout = new LevelLayout();
+            LayoutCell a = layout.AddFirstCell(CellShape.Square);
+            LayoutCell b = layout.Attach(a.id, 0, CellShape.Square);
+            LayoutCell c = layout.Attach(b.id, 2, CellShape.Square);
+            LayoutCell d = layout.Attach(c.id, 2, CellShape.Square);
+
+            LayoutRooms rooms = layout.GetRooms();
+            Assert.AreEqual(0, rooms.StartRoom, "The oldest cell's room starts by default");
+            Assert.AreEqual(3, rooms.EndRoom, "The farthest room ends by default");
+            CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, rooms.DistanceFromStart);
+
+            layout.StartCell = c.id;
+            rooms = layout.GetRooms();
+            Assert.AreEqual(2, rooms.StartRoom);
+            Assert.AreEqual(0, rooms.EndRoom, "Ties for the farthest room go to the lowest room");
+            CollectionAssert.AreEqual(new[] { 2, 1, 0, 1 }, rooms.DistanceFromStart);
+
+            layout.EndCell = b.id;
+            Assert.AreEqual(1, layout.GetRooms().EndRoom, "A chosen end room wins");
+
+            layout.EndCell = c.id;
+            Assert.AreEqual(0, layout.GetRooms().EndRoom, "An end in the start room falls back to automatic");
+
+            layout.Remove(d.id);
+            layout.EndCell = b.id;
+            layout.GetLink(b.id, 2).state = EdgeState.Open;
+            Assert.AreEqual(1, layout.GetRooms().StartRoom, "The start follows its cell into a merged room");
+
+            layout.Remove(c.id);
+            Assert.AreEqual(-1, layout.StartCell, "Removing the chosen cell makes the start automatic again");
+            Assert.AreEqual(0, layout.GetRooms().StartRoom);
+
+            layout.Clear();
+            Assert.AreEqual(-1, layout.EndCell);
+        }
+
+        [Test]
         public void EdgeStates_CycleDoorWallOpen()
         {
             Assert.AreEqual(EdgeState.Wall, LevelLayout.GetNextState(EdgeState.Door));

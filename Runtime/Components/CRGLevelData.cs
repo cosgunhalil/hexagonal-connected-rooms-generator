@@ -33,6 +33,12 @@ namespace CRG.Runtime
             public Transform SpawnPoint;
             public bool HasCeiling;
 
+            [Tooltip("Hand-built levels: the name given to the room in the level builder (empty otherwise)")]
+            public string Name = string.Empty;
+
+            [Tooltip("Hand-built levels: the tag given to the room in the level builder, for example Boss (empty otherwise)")]
+            public string Tag = string.Empty;
+
             [Tooltip("Mixed-grid levels only: the room's own grid type")]
             public GridType GridType;
 
@@ -202,7 +208,14 @@ namespace CRG.Runtime
             LayoutRooms layoutRooms = layout.GetRooms();
             for (int room = 0; room < layoutRooms.Rooms.Count; room++)
             {
-                RoomData roomData = new RoomData { RoomID = room, HasCeiling = ceilingsEnabled };
+                LayoutCell settings = layoutRooms.Settings[room];
+                RoomData roomData = new RoomData
+                {
+                    RoomID = room,
+                    HasCeiling = layoutRooms.HasCeiling(room, ceilingsEnabled),
+                    Name = settings.roomName ?? string.Empty,
+                    Tag = settings.roomTag ?? string.Empty
+                };
                 foreach (int id in layoutRooms.Rooms[room])
                 {
                     LayoutCell cell = layout.GetCell(id);
@@ -244,7 +257,7 @@ namespace CRG.Runtime
             foreach (RoomData room in rooms)
                 room.ConnectedRoomIDs.Sort();
 
-            AssignRoles();
+            AssignRoles(layoutRooms.StartRoom, layoutRooms.EndRoom);
         }
 
         public Transform GetSpawnPoint(int roomID)
@@ -252,8 +265,21 @@ namespace CRG.Runtime
             return GetRoom(roomID)?.SpawnPoint;
         }
 
-        // Breadth-first search over doors from the first room placed (lowest ID).
-        private void AssignRoles()
+        // The first room with this name (names are set in the level builder), or null.
+        public RoomData FindRoom(string roomName)
+        {
+            return rooms.Find(room => room.Name == roomName);
+        }
+
+        // Rooms with this tag (tags are set in the level builder).
+        public IEnumerable<RoomData> GetRoomsWithTag(string tag)
+        {
+            return rooms.Where(room => room.Tag == tag);
+        }
+
+        // Breadth-first search over doors from the start room: the first room placed (lowest ID) unless chosen.
+        // The end room is the chosen one, or the farthest by door count.
+        private void AssignRoles(int startIndex = 0, int chosenEnd = -1)
         {
             if (rooms.Count == 0)
                 return;
@@ -264,7 +290,7 @@ namespace CRG.Runtime
                 room.Role = RoomRole.Normal;
             }
 
-            RoomData start = rooms[0];
+            RoomData start = rooms[Math.Max(0, Math.Min(startIndex, rooms.Count - 1))];
             start.DistanceFromStart = 0;
             start.Role = RoomRole.Start;
 
@@ -287,10 +313,17 @@ namespace CRG.Runtime
 
             // Farthest room becomes the end; ties go to the lowest ID for reproducibility.
             RoomData end = start;
-            foreach (RoomData room in rooms)
+            if (chosenEnd >= 0 && chosenEnd < rooms.Count)
             {
-                if (room.DistanceFromStart > end.DistanceFromStart)
-                    end = room;
+                end = rooms[chosenEnd];
+            }
+            else
+            {
+                foreach (RoomData room in rooms)
+                {
+                    if (room.DistanceFromStart > end.DistanceFromStart)
+                        end = room;
+                }
             }
 
             if (end != start)

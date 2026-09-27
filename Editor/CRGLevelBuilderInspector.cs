@@ -51,6 +51,7 @@ namespace CRG.Editor
 
             DrawToolButton();
             DrawLayoutSummary(builder);
+            DrawSelectedRoom(builder);
             DrawBake(builder);
 
             EditorGUILayout.Space();
@@ -95,6 +96,82 @@ namespace CRG.Editor
 
             if (builder.parametersAsset != null && GUILayout.Button("Refresh Preview", EditorStyles.miniButton))
                 builder.RebuildPreview();
+        }
+
+        // Settings of the room the selected cell belongs to; they are stored on the room's oldest cell.
+        private static void DrawSelectedRoom(CRGLevelBuilder builder)
+        {
+            LevelLayout layout = builder.Layout;
+            if (layout.IsEmpty)
+                return;
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Selected Room", EditorStyles.boldLabel);
+
+            int cell = CRGLevelBuilderTool.GetSelectedCell(builder);
+            LayoutRooms rooms = layout.GetRooms();
+            if (cell < 0)
+            {
+                EditorGUILayout.HelpBox($"Select a cell with the CRG Build tool to name its room, give it a tag, set its ceiling or make it the start or end room.\n" +
+                    $"Start: {DescribeRole(rooms.StartRoom, layout.StartCell >= 0)}   End: {DescribeRole(rooms.EndRoom, layout.EndCell >= 0)}", MessageType.None);
+                return;
+            }
+
+            int room = rooms.RoomOfCell[cell];
+            LayoutCell settings = rooms.Settings[room];
+            string shapes = string.Join(", ", rooms.Rooms[room].GroupBy(id => layout.GetCell(id).shape).OrderBy(g => g.Key).Select(g => $"{g.Count()} {g.Key}"));
+            EditorGUILayout.LabelField($"Room {room}", $"{rooms.Rooms[room].Count} cells ({shapes})");
+
+            EditorGUI.BeginChangeCheck();
+            string roomName = EditorGUILayout.DelayedTextField(new GUIContent("Name", "Shown in the Scene view and stored in the level data (CRGLevelData.FindRoom)"), settings.roomName);
+            string roomTag = EditorGUILayout.DelayedTextField(new GUIContent("Tag", "For gameplay code, for example Boss or Shop (CRGLevelData.GetRoomsWithTag)"), settings.roomTag);
+            RoomCeiling ceiling = (RoomCeiling)EditorGUILayout.EnumPopup(new GUIContent("Ceiling", "Use the level's Add Ceiling setting, or always or never give this room a ceiling"), settings.roomCeiling);
+            if (EditorGUI.EndChangeCheck())
+            {
+                CRGLevelBuilderActions.Edit(builder, "Change CRG Room Settings", () =>
+                {
+                    settings.roomName = roomName;
+                    settings.roomTag = roomTag;
+                    settings.roomCeiling = ceiling;
+                });
+            }
+
+            EditorGUILayout.LabelField("Role", room == rooms.StartRoom ? "Start room" : room == rooms.EndRoom ? "End room" : "Normal");
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(room == rooms.StartRoom && layout.StartCell >= 0))
+            {
+                if (GUILayout.Button("Make Start Room", EditorStyles.miniButtonLeft))
+                {
+                    CRGLevelBuilderActions.Edit(builder, "Set CRG Start Room", () =>
+                    {
+                        layout.StartCell = cell;
+                        if (layout.EndCell >= 0 && rooms.RoomOfCell[layout.EndCell] == room)
+                            layout.EndCell = -1;
+                    });
+                }
+            }
+            using (new EditorGUI.DisabledScope(room == rooms.StartRoom || (room == rooms.EndRoom && layout.EndCell >= 0)))
+            {
+                if (GUILayout.Button("Make End Room", EditorStyles.miniButtonMid))
+                    CRGLevelBuilderActions.Edit(builder, "Set CRG End Room", () => layout.EndCell = cell);
+            }
+            using (new EditorGUI.DisabledScope(layout.StartCell < 0 && layout.EndCell < 0))
+            {
+                if (GUILayout.Button(new GUIContent("Automatic", "Start in the room of the first cell, end in the room farthest from the start"), EditorStyles.miniButtonRight))
+                {
+                    CRGLevelBuilderActions.Edit(builder, "Reset CRG Start and End Rooms", () =>
+                    {
+                        layout.StartCell = -1;
+                        layout.EndCell = -1;
+                    });
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private static string DescribeRole(int room, bool chosen)
+        {
+            return room < 0 ? "none" : $"room {room} ({(chosen ? "chosen" : "automatic")})";
         }
 
         private static void DrawBake(CRGLevelBuilder builder)

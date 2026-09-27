@@ -36,7 +36,30 @@ namespace CRG.Editor
             Cell
         }
 
-        private int selectedCell = -1;
+        // The selected cell is shared with the builder's Inspector, which edits the selected cell's room.
+        private static int selection = -1;
+        private static CRGLevelBuilder selectionOwner;
+
+        private static int SelectedCell
+        {
+            get => selection;
+            set
+            {
+                if (selection == value)
+                    return;
+                selection = value;
+                UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+            }
+        }
+
+        // The cell selected with the CRG Build tool in this builder, or -1.
+        public static int GetSelectedCell(CRGLevelBuilder builder)
+        {
+            return builder != null && builder == selectionOwner && ToolManager.activeToolType == typeof(CRGLevelBuilderTool) &&
+                   builder.Layout.GetCell(selection) != null
+                ? selection
+                : -1;
+        }
         private HoverKind hoverKind;
         private int hoverCell = -1;
         private int hoverEdge = -1;
@@ -55,7 +78,7 @@ namespace CRG.Editor
 
         public override void OnActivated()
         {
-            selectedCell = -1;
+            SelectedCell = -1;
             message = null;
         }
 
@@ -65,8 +88,13 @@ namespace CRG.Editor
                 return;
 
             LevelLayout layout = builder.Layout;
-            if (layout.GetCell(selectedCell) == null)
-                selectedCell = -1;
+            if (selectionOwner != builder)
+            {
+                selectionOwner = builder;
+                selection = -1;
+            }
+            if (layout.GetCell(SelectedCell) == null)
+                SelectedCell = -1;
 
             Event current = Event.current;
             int controlID = GUIUtility.GetControlID(FocusType.Passive);
@@ -108,7 +136,7 @@ namespace CRG.Editor
         {
             // Claim Delete so it removes the selected cell instead of the builder GameObject.
             if ((current.type == EventType.ValidateCommand || current.type == EventType.ExecuteCommand) &&
-                (current.commandName == "SoftDelete" || current.commandName == "Delete") && selectedCell >= 0)
+                (current.commandName == "SoftDelete" || current.commandName == "Delete") && SelectedCell >= 0)
             {
                 if (current.type == EventType.ExecuteCommand)
                     RemoveSelected(builder);
@@ -126,9 +154,9 @@ namespace CRG.Editor
                 case KeyCode.Alpha3: case KeyCode.Keypad3: SetShape(CellShape.Hexagon, current); break;
                 case KeyCode.Alpha4: case KeyCode.Keypad4: SetShape(CellShape.Octagon, current); break;
                 case KeyCode.Escape:
-                    if (selectedCell >= 0)
+                    if (SelectedCell >= 0)
                     {
-                        selectedCell = -1;
+                        SelectedCell = -1;
                         current.Use();
                     }
                     break;
@@ -163,8 +191,8 @@ namespace CRG.Editor
             if (!TryGetLayoutPoint(builder, current.mousePosition, out Vector3 point))
                 return;
 
-            if (selectedCell >= 0 && layout.FindNearestEdge(point, EdgePickDistance,
-                    (cell, edge) => cell == selectedCell && layout.IsOuterEdge(cell, edge), out hoverCell, out hoverEdge))
+            if (SelectedCell >= 0 && layout.FindNearestEdge(point, EdgePickDistance,
+                    (cell, edge) => cell == SelectedCell && layout.IsOuterEdge(cell, edge), out hoverCell, out hoverEdge))
             {
                 hoverKind = HoverKind.Attach;
                 hoverPlan = layout.PlanAttach(hoverCell, hoverEdge, Shape);
@@ -189,7 +217,7 @@ namespace CRG.Editor
             switch (hoverKind)
             {
                 case HoverKind.FirstCell:
-                    CRGLevelBuilderActions.Edit(builder, "Place First CRG Cell", () => selectedCell = layout.AddFirstCell(Shape).id);
+                    CRGLevelBuilderActions.Edit(builder, "Place First CRG Cell", () => SelectedCell = layout.AddFirstCell(Shape).id);
                     break;
 
                 case HoverKind.Attach:
@@ -199,7 +227,7 @@ namespace CRG.Editor
                         break;
                     }
                     AttachPlan plan = hoverPlan;
-                    CRGLevelBuilderActions.Edit(builder, $"Attach CRG {Shape}", () => selectedCell = layout.Attach(plan).id);
+                    CRGLevelBuilderActions.Edit(builder, $"Attach CRG {Shape}", () => SelectedCell = layout.Attach(plan).id);
                     break;
 
                 case HoverKind.SharedEdge:
@@ -209,11 +237,11 @@ namespace CRG.Editor
                     break;
 
                 case HoverKind.Cell:
-                    selectedCell = hoverCell;
+                    SelectedCell = hoverCell;
                     break;
 
                 default:
-                    selectedCell = -1;
+                    SelectedCell = -1;
                     break;
             }
 
@@ -223,15 +251,15 @@ namespace CRG.Editor
         private void RemoveSelected(CRGLevelBuilder builder)
         {
             LevelLayout layout = builder.Layout;
-            if (!layout.CanRemove(selectedCell, out string reason))
+            if (!layout.CanRemove(SelectedCell, out string reason))
             {
                 message = reason;
                 return;
             }
 
-            int removed = selectedCell;
+            int removed = SelectedCell;
             CRGLevelBuilderActions.Edit(builder, "Remove CRG Cell", () => layout.Remove(removed));
-            selectedCell = -1;
+            SelectedCell = -1;
             message = null;
         }
 
@@ -242,7 +270,7 @@ namespace CRG.Editor
             Color previousColor = Handles.color;
             Handles.matrix = CRGLevelBuilderDrawing.GetLayoutMatrix(builder);
 
-            LayoutCell selected = layout.GetCell(selectedCell);
+            LayoutCell selected = layout.GetCell(SelectedCell);
             if (selected != null)
                 DrawOutline(layout.GetCorners(selected), SelectedColor, 4f);
 
@@ -261,7 +289,7 @@ namespace CRG.Editor
                     DrawHoverEdge(layout, SelectedColor);
                     break;
 
-                case HoverKind.Cell when hoverCell != selectedCell:
+                case HoverKind.Cell when hoverCell != SelectedCell:
                     DrawOutline(layout.GetCorners(layout.GetCell(hoverCell)), new Color(SelectedColor.r, SelectedColor.g, SelectedColor.b, 0.5f), 3f);
                     break;
             }
@@ -337,7 +365,7 @@ namespace CRG.Editor
             GUILayout.Label(valid ? string.Empty : $"Settings: {error}", warningStyle);
 
             GUILayout.BeginHorizontal();
-            using (new EditorGUI.DisabledScope(selectedCell < 0))
+            using (new EditorGUI.DisabledScope(SelectedCell < 0))
             {
                 if (GUILayout.Button("Remove Selected (Del)", EditorStyles.miniButton))
                     RemoveSelected(builder);
@@ -348,7 +376,7 @@ namespace CRG.Editor
                     EditorUtility.DisplayDialog("Clear Layout", "Remove every cell of this level?", "Clear", "Cancel"))
                 {
                     CRGLevelBuilderActions.Edit(builder, "Clear CRG Layout", layout.Clear);
-                    selectedCell = -1;
+                    SelectedCell = -1;
                     message = null;
                 }
             }
@@ -382,11 +410,11 @@ namespace CRG.Editor
             if (hoverKind == HoverKind.Attach && hoverPlan != null && !hoverPlan.Fits)
                 return $"Can't attach here: {hoverPlan.FailureReason}.";
 
-            if (selectedCell < 0)
+            if (SelectedCell < 0)
                 return "Click a cell to select it. Click a shared edge to switch it between door, wall and open.";
 
             return $"Click an outer edge of the selected cell to attach a {Shape.ToString().ToLowerInvariant()} with a door. " +
-                   "Click a shared edge to switch it between door, wall and open.";
+                   "Click a shared edge to switch it between door, wall and open. Room settings are in the Inspector.";
         }
 
         private static string Describe(EdgeState state)

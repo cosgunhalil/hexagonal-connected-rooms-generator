@@ -25,6 +25,15 @@ namespace CRG.Building
         Open
     }
 
+    // Whether a room gets a ceiling: as the level's Add Ceiling setting says, or always, or never.
+    public enum RoomCeiling
+    {
+        [InspectorName("Use Level Setting")]
+        LevelSetting,
+        On,
+        Off
+    }
+
     public static class CellShapes
     {
         public static readonly CellShape[] All = { CellShape.Triangle, CellShape.Square, CellShape.Hexagon, CellShape.Octagon };
@@ -72,6 +81,12 @@ namespace CRG.Building
 
         // Where the cell's center and orientation sit in the layout, in units of the cell size.
         public RoomPlacement placement;
+
+        // Room settings. Only the room's oldest cell's are used: when rooms merge the older room's settings win,
+        // and when a room is split each part keeps its own oldest cell's.
+        public string roomName = string.Empty;
+        public string roomTag = string.Empty;
+        public RoomCeiling roomCeiling;
     }
 
     // An edge shared exactly by two cells, seen from cell A as edgeA and from cell B as edgeB.
@@ -113,14 +128,36 @@ namespace CRG.Building
     // Rooms of a layout: cells joined by open edges form one room.
     public class LayoutRooms
     {
-        // Cell IDs per room, ordered by their lowest cell ID; room 0 holds the oldest cell and is the start room.
+        // Cell IDs per room, ordered by their lowest cell ID, so room 0 holds the oldest cell. Each list is sorted,
+        // so its first cell is the room's oldest cell, which holds the room's settings.
         public readonly List<List<int>> Rooms = new List<List<int>>();
         public readonly Dictionary<int, int> RoomOfCell = new Dictionary<int, int>();
+
+        // Settings cell (oldest cell) of each room.
+        public readonly List<LayoutCell> Settings = new List<LayoutCell>();
+
+        // Doors on the shortest path from the start room, or -1 when a room can't be reached.
+        public readonly List<int> DistanceFromStart = new List<int>();
 
         // Rooms that can't be reached from the start room through doors.
         public readonly List<int> Unreachable = new List<int>();
 
-        public int StartRoom => Rooms.Count > 0 ? 0 : -1;
+        // The room of the chosen start cell, or room 0.
+        public int StartRoom { get; internal set; } = -1;
+
+        // The room of the chosen end cell, or the reachable room farthest from the start by door count (ties go to
+        // the lowest room); -1 when no other room can be reached.
+        public int EndRoom { get; internal set; } = -1;
+
+        public bool HasCeiling(int room, bool levelCeilings)
+        {
+            switch (Settings[room].roomCeiling)
+            {
+                case RoomCeiling.On: return true;
+                case RoomCeiling.Off: return false;
+                default: return levelCeilings;
+            }
+        }
     }
 
     // A hand-built level: cells of any shape placed edge to edge, and the state of every shared edge. All positions
@@ -134,9 +171,27 @@ namespace CRG.Building
         [SerializeField] private List<LayoutLink> links = new List<LayoutLink>();
         [SerializeField] private int nextCellID;
 
+        // Cells whose rooms are the start and end rooms when chosen by hand; -1 picks them automatically.
+        [SerializeField] private int startCell = -1;
+        [SerializeField] private int endCell = -1;
+
         public IReadOnlyList<LayoutCell> Cells => cells;
         public IReadOnlyList<LayoutLink> Links => links;
         public bool IsEmpty => cells.Count == 0;
+
+        // The cell whose room is the start room, or -1 for automatic (the room of the oldest cell).
+        public int StartCell
+        {
+            get => GetCell(startCell) != null ? startCell : -1;
+            set => startCell = value;
+        }
+
+        // The cell whose room is the end room, or -1 for automatic (the room farthest from the start).
+        public int EndCell
+        {
+            get => GetCell(endCell) != null ? endCell : -1;
+            set => endCell = value;
+        }
 
         public LayoutCell GetCell(int id)
         {
@@ -367,6 +422,10 @@ namespace CRG.Building
 
             cells.RemoveAll(cell => cell.id == cellID);
             links.RemoveAll(link => link.cellA == cellID || link.cellB == cellID);
+            if (startCell == cellID)
+                startCell = -1;
+            if (endCell == cellID)
+                endCell = -1;
             return true;
         }
 
@@ -375,6 +434,8 @@ namespace CRG.Building
             cells.Clear();
             links.Clear();
             nextCellID = 0;
+            startCell = -1;
+            endCell = -1;
         }
 
         public static EdgeState GetNextState(EdgeState state)
@@ -413,13 +474,19 @@ namespace CRG.Building
                 foreach (int id in roomCells)
                     result.RoomOfCell[id] = result.Rooms.Count;
                 result.Rooms.Add(roomCells);
+                result.Settings.Add(GetCell(roomCells[0]));
+                result.DistanceFromStart.Add(-1);
             }
 
             if (result.Rooms.Count == 0)
                 return result;
 
-            HashSet<int> reached = new HashSet<int> { 0 };
-            Queue<int> queue = new Queue<int>(reached);
+            result.StartRoom = StartCell >= 0 ? result.RoomOfCell[StartCell] : 0;
+
+            // Breadth-first over doors from the start room.
+            result.DistanceFromStart[result.StartRoom] = 0;
+            Queue<int> queue = new Queue<int>();
+            queue.Enqueue(result.StartRoom);
             while (queue.Count > 0)
             {
                 int room = queue.Dequeue();
@@ -428,16 +495,34 @@ namespace CRG.Building
                     foreach (LayoutLink link in GetLinks(id).Where(link => link.state == EdgeState.Door))
                     {
                         int other = result.RoomOfCell[link.GetOther(id)];
-                        if (reached.Add(other))
+                        if (result.DistanceFromStart[other] < 0)
+                        {
+                            result.DistanceFromStart[other] = result.DistanceFromStart[room] + 1;
                             queue.Enqueue(other);
+                        }
                     }
                 }
             }
 
             for (int room = 0; room < result.Rooms.Count; room++)
             {
-                if (!reached.Contains(room))
+                if (result.DistanceFromStart[room] < 0)
                     result.Unreachable.Add(room);
+            }
+
+            int chosenEnd = EndCell >= 0 ? result.RoomOfCell[EndCell] : -1;
+            if (chosenEnd >= 0 && chosenEnd != result.StartRoom)
+            {
+                result.EndRoom = chosenEnd;
+            }
+            else
+            {
+                for (int room = 0; room < result.Rooms.Count; room++)
+                {
+                    if (room != result.StartRoom && result.DistanceFromStart[room] > 0 &&
+                        (result.EndRoom < 0 || result.DistanceFromStart[room] > result.DistanceFromStart[result.EndRoom]))
+                        result.EndRoom = room;
+                }
             }
 
             return result;

@@ -136,6 +136,58 @@ namespace CRG.Tests
             Assert.That(downArea, Is.EqualTo(cellArea).Within(cellArea * 1e-4f));
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void RoomCeilings_FollowEachRoomsSetting(bool levelCeilings)
+        {
+            parameters.AddCeiling = levelCeilings;
+            parameters.WallThickness = 1f;
+            LevelLayout layout = RandomLayout(8, 0.6);
+            LayoutRooms rooms = layout.GetRooms();
+            for (int room = 0; room < rooms.Rooms.Count; room++)
+                rooms.Settings[room].roomCeiling = (RoomCeiling)(room % 3);
+
+            GameObject level = Build(layout);
+            float expected = 0f;
+            for (int room = 0; room < rooms.Rooms.Count; room++)
+            {
+                if (rooms.HasCeiling(room, levelCeilings))
+                    expected += rooms.Rooms[room].Sum(id => PolygonArea(WorldCorners(layout, layout.GetCell(id))));
+            }
+
+            float downArea = GetTriangles(level).Where(t => t.IsHorizontalAt(parameters.WallHeight) && t.Normal.y < -0.99f).Sum(t => t.Area);
+            Assert.That(downArea, Is.EqualTo(expected).Within(1e-2f + expected * 1e-4f));
+
+            CRGLevelData data = level.GetComponent<CRGLevelData>();
+            foreach (CRGLevelData.RoomData room in data.Rooms)
+                Assert.That(room.HasCeiling, Is.EqualTo(rooms.HasCeiling(room.RoomID, levelCeilings)), $"room {room.RoomID}");
+        }
+
+        [Test]
+        public void LevelData_KeepsRoomNamesTagsAndChosenRoles()
+        {
+            LevelLayout layout = RandomLayout(9, 0.3);
+            foreach (LayoutLink link in layout.Links.Where(link => link.state == EdgeState.Wall))
+                link.state = EdgeState.Door;
+
+            LayoutRooms rooms = layout.GetRooms();
+            Assert.That(rooms.Rooms.Count, Is.GreaterThan(3));
+            rooms.Settings[1].roomName = "Armory";
+            rooms.Settings[2].roomTag = "Boss";
+            rooms.Settings[3].roomTag = "Boss";
+            layout.StartCell = rooms.Rooms[2][0];
+            layout.EndCell = rooms.Rooms[1][0];
+
+            CRGLevelData data = Build(layout).GetComponent<CRGLevelData>();
+            Assert.That(data.FindRoom("Armory").RoomID, Is.EqualTo(1));
+            Assert.That(data.FindRoom("Nowhere"), Is.Null);
+            Assert.That(data.GetRoomsWithTag("Boss").Select(room => room.RoomID), Is.EquivalentTo(new[] { 2, 3 }));
+            Assert.That(data.StartRoom.RoomID, Is.EqualTo(2));
+            Assert.That(data.EndRoom.RoomID, Is.EqualTo(1));
+            Assert.That(data.StartRoom.DistanceFromStart, Is.Zero);
+            Assert.That(data.GetRoom(1).SpawnPoint.name, Is.EqualTo("Spawn_Room_1_Armory"));
+        }
+
         [TestCase(0f)]
         [TestCase(1f)]
         public void Doorways_AreOpen_AndWallsBesideThemAreSolid(float thickness)

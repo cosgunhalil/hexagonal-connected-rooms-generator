@@ -80,7 +80,7 @@ namespace CRG.Editor
                 }
             }
 
-            DrawRoomLabels(layout, rooms);
+            DrawRoomLabels(layout, rooms, builder.Parameters != null && builder.Parameters.AddCeiling);
 
             Handles.matrix = previousMatrix;
             Handles.color = previousColor;
@@ -118,7 +118,7 @@ namespace CRG.Editor
             }
         }
 
-        private static void DrawRoomLabels(LevelLayout layout, LayoutRooms rooms)
+        private static void DrawRoomLabels(LevelLayout layout, LayoutRooms rooms, bool levelCeilings)
         {
             if (labelStyle == null)
             {
@@ -138,9 +138,18 @@ namespace CRG.Editor
                     center += layout.GetCenter(layout.GetCell(id));
                 center /= rooms.Rooms[room].Count;
 
+                LayoutCell settings = rooms.Settings[room];
                 string text = $"Room {room}";
+                if (!string.IsNullOrEmpty(settings.roomName))
+                    text += $" \"{settings.roomName}\"";
+                if (!string.IsNullOrEmpty(settings.roomTag))
+                    text += $" [{settings.roomTag}]";
                 if (room == rooms.StartRoom)
                     text += " · start";
+                if (room == rooms.EndRoom)
+                    text += " · end";
+                if (rooms.HasCeiling(room, levelCeilings))
+                    text += " · ceiling";
                 if (rooms.Unreachable.Contains(room))
                     text += $"\n<color=#{ColorUtility.ToHtmlStringRGB(UnreachableColor)}>unreachable</color>";
 

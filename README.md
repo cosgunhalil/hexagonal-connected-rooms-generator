@@ -11,6 +11,7 @@ On top of the geometry it can add colliders, bake a NavMesh, place a door prefab
 ## Features
 
 - **Four grid types, or all at once**: hexagons, squares, triangles and octagons + squares, or a mixed level where every room picks its own grid type by weight.
+- **Hand-built levels**: build a level yourself, cell by cell, in the Scene view with a live preview, then bake it into one mesh or one mesh per room.
 - **Connected by construction**: every room is reachable from the first one through doors. Each pair of connected rooms gets exactly one door, centered on a shared edge.
 - **Single mesh output**: one `ProBuilderMesh` with separate floor, wall and ceiling material slots, still editable with ProBuilder tools. Walls can be zero-thickness planes or solid walls of any thickness, with optional ceilings. Optionally one mesh per room.
 - **Reproducible**: the same seed and settings always produce the same level.
@@ -40,6 +41,7 @@ Alternatively, clone or copy the repository into your project's `Assets` or `Pac
 - **CRG → Generate Quick Level (Small / Medium / Large / Mixed)** generates a level with preset settings and a random seed; Mixed uses every grid type.
 - **CRG → Level Generator** (also under **Window → CRG**) opens the full generator window: set parameters, materials and an optional door prefab, then click **Generate Level**.
 - **GameObject → CRG → Create Level Generator** adds a `CRGRuntimeComponent` to the scene. It can generate from its Inspector, or automatically on Start at runtime.
+- **GameObject → CRG → Create Level Builder** adds a `CRGLevelBuilder` for building a level by hand (see [Hand-built levels](#hand-built-levels)).
 - **Assets → Create → CRG → Generation Parameters** creates a reusable parameters asset.
 
 The generator window also offers **Generate (Separate Rooms)** (one mesh per room), **Floor Only** and **Walls Only**.
@@ -64,6 +66,31 @@ With **Grid Type = Mixed (all grid types)**, every room picks its own grid type 
 Rooms on different grids leave small empty wedges between them; those stay outside space with outer walls on both sides. A rolled grid type is kept until a room of that type is placed, so the level's mix follows the weights. Start Position is not used by mixed levels.
 
 Cells lie in the XZ plane with +Z as north: hexagons are pointy-top, squares are axis-aligned, triangles are equilateral with alternating up- and down-pointing cells, octagon + square grids combine octagons (flat sides facing the compass directions) with 45 degree squares in the gaps, and Cell Size is always the edge length.
+
+## Hand-built levels
+
+The level builder lets you design a level yourself, one cell at a time, from triangles, squares, hexagons and octagons. Every shape has edges one Cell Size long, so any edge of one cell fits any edge of another.
+
+1. **GameObject → CRG → Create Level Builder** adds a *Level Builder* and starts the **CRG Build** tool. The **Edit Layout** button in its Inspector turns the tool on and off.
+2. Click in the Scene view to place the first cell at the builder's position.
+3. Click a cell to select it. Hover over one of its outer edges to preview the chosen shape there: green when it fits, red (with the reason) when it would overlap another cell or only partly line up with one. Click to attach it. The new cell is selected, so you can keep building in a chain.
+4. Click an edge shared by two cells to switch it between **door**, **wall** and **open**. A new cell's attach edge starts as a door; other edges it touches start as walls.
+5. Cells joined by open edges form one room, whatever their shapes. Two rooms can have any number of doors between them.
+
+| Key | Action |
+|---|---|
+| 1 / 2 / 3 / 4 | Pick the shape: triangle, square, hexagon, octagon |
+| Delete | Remove the selected cell (refused when it would split the level into pieces) |
+| Escape | Clear the selection |
+| Ctrl+Z / Ctrl+Y | Undo / redo any change |
+
+While you build, the Scene view shows a live preview of the real geometry, with cells colored per room, door, wall and open edges, and room labels on top. Rooms that can't be reached from the start room are shown in red and listed as a warning; you can still bake them (for example for secret or unfinished areas).
+
+**Room settings.** With a cell selected, the **Selected Room** section of the Inspector sets its room's **Name**, **Tag** (for example *Boss*) and **Ceiling** (use the level's Add Ceiling setting, or always or never), and makes it the **start** or **end** room. By default the room of the first cell is the start and the room farthest from it by door count is the end. Room settings belong to the room's oldest cell: when rooms merge, the older room's settings win.
+
+**Settings and baking.** The builder uses the same settings as the generator (Cell Size, walls, doors, ceilings, colliders, NavMesh, spawn points) or a Generation Parameters asset; the random layout settings are ignored. Door width is checked against the shapes you used, since triangles need more room at their corners for thick walls. **Bake Level** or **Bake Separate Rooms** (in the Inspector or the Scene view panel) creates a new level GameObject at the builder's position and rotation, exactly like a generated level: level data, colliders, NavMesh, spawn points and door prefabs included. Each bake makes a new level; the builder stays, so you can keep editing and bake again. After a bake the preview is hidden so it doesn't overlap the baked level, and editing shows it again.
+
+The layout is saved with the scene in units of the cell size, so changing Cell Size scales the whole level. From code, `CRGLevelBuilder.Layout` gives the `LevelLayout` (`AddFirstCell`, `PlanAttach` / `Attach`, `Remove`, the links' `state`, `StartCell` / `EndCell`, `GetRooms()`), and `CRGLevelBuilder.Bake(separateRooms)` bakes it.
 
 ## Parameters
 
@@ -161,12 +188,12 @@ Every generated level has a `CRGLevelData` component with the layout, stored wit
 
 | Member | Description |
 |---|---|
-| `GridType`, `CellSize`, `IsMixed` | The level's grid type and cell edge length; `IsMixed` is true for mixed levels. |
-| `Rooms` | `RoomData` per room: `RoomID`, `Cells`, `ConnectedRoomIDs`, `DistanceFromStart`, `Role` (Start / End / Normal), `SpawnPoint`, `IsDeadEnd`, `HasCeiling`, and for mixed levels the room's own `GridType` and `Placement` (where its grid sits in the level). |
+| `GridType`, `CellSize`, `IsMixed`, `IsHandBuilt` | The level's grid type and cell edge length; `IsMixed` and `IsHandBuilt` tell mixed and hand-built levels apart. |
+| `Rooms` | `RoomData` per room: `RoomID`, `Cells`, `ConnectedRoomIDs`, `DistanceFromStart`, `Role` (Start / End / Normal), `SpawnPoint`, `IsDeadEnd`, `HasCeiling`, and for mixed levels the room's own `GridType` and `Placement` (where its grid sits in the level). Hand-built rooms also have their `Name` and `Tag`, and `PlacedCells` with each cell's own grid type and placement (their `Cells` hold the builder's cell IDs as `x`). |
 | `Doors` | `DoorData` per door: `RoomA`, `RoomB`, `CellA`, `EdgeA`, `DoorObject` (the placed prefab, if any). |
-| `StartRoom`, `EndRoom` | The first room placed, and the room farthest from it by door count. |
-| `GetRoom(id)`, `GetSpawnPoint(id)` | Lookups by room ID. |
-| `GetTopology(room)`, `GetCellLocalPosition(room, cell)`, `GetRoomAnchorLocalPosition(room)` | The grid and cell positions of a room, in the level's local space. They work for every level, including mixed ones where each room has its own grid. |
+| `StartRoom`, `EndRoom` | The first room placed, and the room farthest from it by door count (or the rooms chosen in the level builder). |
+| `GetRoom(id)`, `GetSpawnPoint(id)`, `FindRoom(name)`, `GetRoomsWithTag(tag)` | Lookups by room ID, and by the names and tags set in the level builder. |
+| `GetTopology(room, cell)`, `GetCellLocalPosition(room, cell)`, `GetCellCornerLocal(room, cell, corner)`, `GetRoomAnchorLocalPosition(room)` | The grid and positions of a room's cells, in the level's local space. They work for every level, including mixed and hand-built ones where rooms or cells have their own grids. |
 | `GetDoorCenterLocal(door)`, `GetDoorForwardLocal(door)`, `GetDoorOpeningLocal(door)` | Door position, direction (RoomA → RoomB) and opening endpoints, in the level's local space. |
 
 ## Scene-view overlays
@@ -175,7 +202,7 @@ Every generated level draws room outlines in per-room colors, room labels (size,
 
 ## Tests
 
-Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → Test Runner → EditMode**. They cover the grid topologies, level invariants across many seeds and settings for every grid type and for mixed levels, geometry output (including solid wall corners and ceilings), pinned golden levels that catch unintended changes to existing seeds, and the post-generation features, including a NavMesh path from the start room to the end room when AI Navigation is installed.
+Edit Mode tests live in `Tests/Editor`. Run them from **Window → General → Test Runner → EditMode**. They cover the grid topologies, level invariants across many seeds and settings for every grid type and for mixed levels, the level builder's layout rules, geometry output (including solid wall corners where different shapes meet, and ceilings), pinned golden levels that catch unintended changes to existing seeds and hand-built layouts, and the post-generation features, including a NavMesh path from the start room to the end room when AI Navigation is installed.
 
 ## Limitations
 

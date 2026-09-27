@@ -6,8 +6,8 @@ CRG is in `0.x` development, and only the latest release receives fixes. Please 
 
 | Version | Supported |
 |---|---|
-| 0.6.x | Yes |
-| < 0.6 | No |
+| 0.7.x | Yes |
+| < 0.7 | No |
 
 ## Reporting a vulnerability
 

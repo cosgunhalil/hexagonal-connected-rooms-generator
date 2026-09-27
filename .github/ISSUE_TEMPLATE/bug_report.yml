@@ -61,7 +61,7 @@ body:
     id: crg-version
     attributes:
       label: CRG version
-      placeholder: "0.6.0"
+      placeholder: "0.7.0"
     validations:
       required: true
 
