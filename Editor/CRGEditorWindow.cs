@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEngine;
+using CRG.Building;
 using CRG.Core;
 using CRG.Generation;
 using CRG.Geometry;
@@ -335,6 +336,12 @@ namespace CRG.Editor
                 GenerateLevel();
             }
 
+            if (GUILayout.Button(new GUIContent("Generate into Level Builder",
+                    "Generate a layout with these settings into a new Level Builder instead of a baked level, to edit it by hand and bake it later")))
+            {
+                GenerateIntoLevelBuilder();
+            }
+
             EditorGUILayout.BeginHorizontal();
 
             if (GUILayout.Button("Generate (Separate Rooms)"))
@@ -459,6 +466,33 @@ namespace CRG.Editor
             }
 
             Repaint();
+        }
+
+        // Generates the layout and hands it to a new Level Builder (with these settings, the seed used and the
+        // materials) instead of building the level.
+        private void GenerateIntoLevelBuilder()
+        {
+            if (!ValidateParameters())
+                return;
+
+            GenerationParameters used = parameters.Clone();
+            LevelLayout layout;
+            if (parameters.GridType == GridType.Mixed)
+            {
+                MixedLevel level = new MixedLevelGenerator().Generate(parameters);
+                used.RandomSeed = level.Seed;
+                layout = LayoutConversion.FromMixedLevel(level, parameters.AddCeiling);
+            }
+            else
+            {
+                CellGrid grid = new CRGGenerator().Generate(parameters);
+                used.RandomSeed = grid.Seed;
+                layout = LayoutConversion.FromGrid(grid, parameters.AddCeiling);
+            }
+
+            CRGLevelBuilderActions.CreateBuilder("Level Builder", null, Vector3.zero, Quaternion.identity, Vector3.one, layout, used,
+                floorMaterial, wallMaterial, ceilingMaterial, doorPrefab, "Generate CRG Level into Level Builder");
+            Debug.Log($"Generated {layout.Cells.Count} cells into a Level Builder (seed {used.RandomSeed})");
         }
 
         private void ClearLastGenerated()

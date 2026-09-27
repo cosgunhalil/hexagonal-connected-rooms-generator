@@ -42,6 +42,12 @@ namespace CRG.Runtime
 
         public LevelLayout Layout => layout ?? (layout = new LevelLayout());
 
+        // Replaces the whole layout, for example with one converted from a generated level.
+        public void SetLayout(LevelLayout newLayout)
+        {
+            layout = newLayout ?? new LevelLayout();
+        }
+
         public GenerationParameters Parameters =>
             parametersAsset != null && parametersAsset.parameters != null ? parametersAsset.parameters : parameters;
 

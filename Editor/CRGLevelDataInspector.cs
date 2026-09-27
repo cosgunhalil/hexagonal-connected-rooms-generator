@@ -94,6 +94,18 @@ namespace CRG.Editor
 
             DrawGenerationSettings(data);
 
+            EditorGUILayout.Space();
+            if (data.Rooms.Count > 0 && GUILayout.Button(new GUIContent("Edit in Level Builder",
+                    "Replace this level with a Level Builder holding the same layout and settings, to change it by hand and bake it again (undoable)"),
+                    GUILayout.Height(28)))
+            {
+                if (CRGLevelBuilderActions.EditInLevelBuilder(data) != null)
+                    GUIUtility.ExitGUI();
+            }
+
+            if (data.Rooms.Count > 0 && !data.HasGenerationSettings)
+                EditorGUILayout.HelpBox("This level was made before settings were saved with levels: editing it uses its cell size, wall height and door size, and default values for everything else (for example Wall Thickness 0).", MessageType.Info);
+
             if (data.Rooms.Count > 0 && GUILayout.Button("Frame Level In Scene View"))
             {
                 Renderer[] renderers = data.GetComponentsInChildren<Renderer>();

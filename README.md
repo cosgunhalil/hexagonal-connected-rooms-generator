@@ -11,7 +11,7 @@ On top of the geometry it can add colliders, bake a NavMesh, place a door prefab
 ## Features
 
 - **Four grid types, or all at once**: hexagons, squares, triangles and octagons + squares, or a mixed level where every room picks its own grid type by weight.
-- **Hand-built levels**: build a level yourself, cell by cell, in the Scene view with a live preview, then bake it into one mesh or one mesh per room.
+- **Hand-built levels**: build a level yourself, cell by cell, in the Scene view with a live preview, then bake it into one mesh or one mesh per room. Generated levels can be opened in the level builder and adjusted by hand.
 - **Connected by construction**: every room is reachable from the first one through doors. Each pair of connected rooms gets exactly one door, centered on a shared edge.
 - **Single mesh output**: one `ProBuilderMesh` with separate floor, wall and ceiling material slots, still editable with ProBuilder tools. Walls can be zero-thickness planes or solid walls of any thickness, with optional ceilings. Optionally one mesh per room.
 - **Reproducible**: the same seed and settings always produce the same level.
@@ -39,7 +39,7 @@ Alternatively, clone or copy the repository into your project's `Assets` or `Pac
 ## Quick start
 
 - **CRG → Generate Quick Level (Small / Medium / Large / Mixed)** generates a level with preset settings and a random seed; Mixed uses every grid type.
-- **CRG → Level Generator** (also under **Window → CRG**) opens the full generator window: set parameters, materials and an optional door prefab, then click **Generate Level**.
+- **CRG → Level Generator** (also under **Window → CRG**) opens the full generator window: set parameters, materials and an optional door prefab, then click **Generate Level**, or **Generate into Level Builder** to adjust the result by hand before baking.
 - **GameObject → CRG → Create Level Generator** adds a `CRGRuntimeComponent` to the scene. It can generate from its Inspector, or automatically on Start at runtime.
 - **GameObject → CRG → Create Level Builder** adds a `CRGLevelBuilder` for building a level by hand (see [Hand-built levels](#hand-built-levels)).
 - **Assets → Create → CRG → Generation Parameters** creates a reusable parameters asset.
@@ -90,7 +90,13 @@ While you build, the Scene view shows a live preview of the real geometry, with 
 
 **Settings and baking.** The builder uses the same settings as the generator (Cell Size, walls, doors, ceilings, colliders, NavMesh, spawn points) or a Generation Parameters asset; the random layout settings are ignored. Door width is checked against the shapes you used, since triangles need more room at their corners for thick walls. **Bake Level** or **Bake Separate Rooms** (in the Inspector or the Scene view panel) creates a new level GameObject at the builder's position and rotation, exactly like a generated level: level data, colliders, NavMesh, spawn points and door prefabs included. Each bake makes a new level; the builder stays, so you can keep editing and bake again. After a bake the preview is hidden so it doesn't overlap the baked level, and editing shows it again.
 
-The layout is saved with the scene in units of the cell size, so changing Cell Size scales the whole level. From code, `CRGLevelBuilder.Layout` gives the `LevelLayout` (`AddFirstCell`, `PlanAttach` / `Attach`, `Remove`, the links' `state`, `StartCell` / `EndCell`, `GetRooms()`), and `CRGLevelBuilder.Bake(separateRooms)` bakes it.
+### Editing generated levels
+
+Any baked level can be turned back into a builder layout: click **Edit in Level Builder** in the level's `CRGLevelData` Inspector. The level is replaced (undoably) by a Level Builder at the same place, with the same cells, rooms, doors, ceilings, start and end rooms, settings, materials and door prefab. Edges inside a room become open, doors stay doors and edges between rooms become walls. Baking it again without changes gives back the same level, so you can adjust just the parts you want. The **Generate into Level Builder** button of the Level Generator window skips the baked level and puts the generated layout straight into a new Level Builder.
+
+A hand-built level gives back exactly the layout it was baked from. Levels made before 0.8.0 didn't save their settings; editing one of them uses its cell size, wall height and door size, and default values for the rest (for example Wall Thickness 0).
+
+The layout is saved with the scene in units of the cell size, so changing Cell Size scales the whole level. From code, `CRGLevelBuilder.Layout` gives the `LevelLayout` (`AddFirstCell`, `PlanAttach` / `Attach`, `Place`, `Remove`, the links' `state`, `StartCell` / `EndCell`, `GetRooms()`), `CRGLevelBuilder.SetLayout` replaces it, and `CRGLevelBuilder.Bake(separateRooms)` bakes it. `LayoutConversion.FromLevelData(data)`, `FromGrid(grid, ceilings)` and `FromMixedLevel(level, ceilings)` convert levels into layouts, and `LayoutConversion.SettingsFor(data)` gives the settings to bake them with.
 
 ## Parameters
 

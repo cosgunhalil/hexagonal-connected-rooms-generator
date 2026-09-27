@@ -98,6 +98,10 @@ namespace CRG.Runtime
         [SerializeField, HideInInspector] private Material ceilingMaterial;
         [SerializeField, HideInInspector] private GameObject doorPrefab;
 
+        // Hand-built levels keep a copy of their layout: the level data alone can't tell walls between cells of
+        // one room apart from open edges, and editing the level again should give back exactly what was built.
+        [SerializeField, HideInInspector] private LevelLayout sourceLayout;
+
         public float CellSize => cellSize;
         public GridType GridType => gridType;
         // The level's grid for single-grid levels. Mixed levels have one per room: use GetTopology(room).
@@ -106,6 +110,7 @@ namespace CRG.Runtime
         public bool IsHandBuilt => handBuilt;
         public float WallHeight => wallHeight;
         public float DoorHeight => doorHeight;
+        public float DoorWidthRatio => doorWidthRatio;
         public IReadOnlyList<RoomData> Rooms => rooms;
         public IReadOnlyList<DoorData> Doors => doors;
 
@@ -122,6 +127,9 @@ namespace CRG.Runtime
         public Material WallMaterial => wallMaterial;
         public Material CeilingMaterial => ceilingMaterial;
         public GameObject DoorPrefab => doorPrefab;
+
+        // The layout a hand-built level was baked from (a copy), or null for other levels and older hand-built ones.
+        public LevelLayout SourceLayout => handBuilt && sourceLayout != null && !sourceLayout.IsEmpty ? sourceLayout : null;
 
         public RoomData StartRoom => rooms.Find(room => room.Role == RoomRole.Start);
         public RoomData EndRoom => rooms.Find(room => room.Role == RoomRole.End);
@@ -220,6 +228,7 @@ namespace CRG.Runtime
         {
             mixed = false;
             handBuilt = true;
+            sourceLayout = layout.Clone();
             gridType = layout.Cells.Count > 0 ? CellShapes.GetGridType(layout.Cells[0].shape) : GridType.Hexagon;
             this.cellSize = cellSize;
             this.wallHeight = wallHeight;
@@ -398,6 +407,22 @@ namespace CRG.Runtime
             CellFrame frame = Resolve(room, cell);
             Vector3 local = frame.topology.GetCellCenter(frame.cell, cellSize) + frame.topology.GetCornerOffset(frame.cell, corner, cellSize) * scale;
             return frame.ToLevelPoint(local);
+        }
+
+        // The grid a stored cell comes from, its coordinate in that grid, and where that grid sits in the level.
+        public (GridType gridType, CellCoord gridCell, RoomPlacement placement) GetCellGrid(RoomData room, CellCoord cell)
+        {
+            if (handBuilt)
+            {
+                PlacedCellData placedCell = room.PlacedCells.Find(c => c.CellID == cell.x);
+                if (placedCell != null)
+                    return (placedCell.GridType, new CellCoord(0, 0), placedCell.Placement);
+            }
+
+            if (mixed)
+                return (room.GridType, cell, room.Placement);
+
+            return (gridType, cell, RoomPlacement.Identity);
         }
 
         public int GetCellEdgeCount(RoomData room, CellCoord cell)

@@ -208,6 +208,44 @@ namespace CRG.Building
             set => endCell = value;
         }
 
+        // A deep copy: same cells (IDs, shapes, placements, room settings), links and chosen start and end cells.
+        public LevelLayout Clone()
+        {
+            LevelLayout copy = new LevelLayout
+            {
+                nextCellID = nextCellID,
+                startCell = startCell,
+                endCell = endCell
+            };
+
+            foreach (LayoutCell cell in cells)
+            {
+                copy.cells.Add(new LayoutCell
+                {
+                    id = cell.id,
+                    shape = cell.shape,
+                    placement = cell.placement,
+                    roomName = cell.roomName,
+                    roomTag = cell.roomTag,
+                    roomCeiling = cell.roomCeiling
+                });
+            }
+
+            foreach (LayoutLink link in links)
+            {
+                copy.links.Add(new LayoutLink
+                {
+                    cellA = link.cellA,
+                    edgeA = link.edgeA,
+                    cellB = link.cellB,
+                    edgeB = link.edgeB,
+                    state = link.state
+                });
+            }
+
+            return copy;
+        }
+
         public LayoutCell GetCell(int id)
         {
             EnsureIndex();
