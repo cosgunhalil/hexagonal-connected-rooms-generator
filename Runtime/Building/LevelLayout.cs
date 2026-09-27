@@ -163,9 +163,13 @@ namespace CRG.Building
     // A hand-built level: cells of any shape placed edge to edge, and the state of every shared edge. All positions
     // are in units of the cell size, so changing the cell size scales the level without breaking it.
     [Serializable]
-    public class LevelLayout
+    public class LevelLayout : ISerializationCallbackReceiver
     {
         public const float Tolerance = 1e-3f;
+
+        // Cells are bucketed by center; a bucket is larger than twice the largest circumradius (octagon, 1.31), so
+        // cells that can touch or overlap are always in neighboring buckets.
+        private const float BucketSize = 3f;
 
         [SerializeField] private List<LayoutCell> cells = new List<LayoutCell>();
         [SerializeField] private List<LayoutLink> links = new List<LayoutLink>();
@@ -174,6 +178,17 @@ namespace CRG.Building
         // Cells whose rooms are the start and end rooms when chosen by hand; -1 picks them automatically.
         [SerializeField] private int startCell = -1;
         [SerializeField] private int endCell = -1;
+
+        // Lookup tables, rebuilt on demand after any change to the lists or after Unity deserializes the layout (undo,
+        // redo, scene loads), which can replace the cell and link objects.
+        [NonSerialized] private Dictionary<int, LayoutCell> cellsByID;
+        [NonSerialized] private Dictionary<(int, int), LayoutLink> linksByEdge;
+        [NonSerialized] private Dictionary<int, List<LayoutLink>> linksByCell;
+        [NonSerialized] private Dictionary<(int, int), List<LayoutCell>> buckets;
+        [NonSerialized] private List<LayoutCell> indexedCells;
+        [NonSerialized] private List<LayoutLink> indexedLinks;
+        [NonSerialized] private int indexedCellCount;
+        [NonSerialized] private int indexedLinkCount;
 
         public IReadOnlyList<LayoutCell> Cells => cells;
         public IReadOnlyList<LayoutLink> Links => links;
@@ -195,7 +210,85 @@ namespace CRG.Building
 
         public LayoutCell GetCell(int id)
         {
-            return cells.FirstOrDefault(cell => cell.id == id);
+            EnsureIndex();
+            return cellsByID.TryGetValue(id, out LayoutCell cell) ? cell : null;
+        }
+
+        public void OnBeforeSerialize()
+        {
+        }
+
+        public void OnAfterDeserialize()
+        {
+            InvalidateIndex();
+        }
+
+        private void InvalidateIndex()
+        {
+            cellsByID = null;
+        }
+
+        private void EnsureIndex()
+        {
+            if (cellsByID != null && ReferenceEquals(indexedCells, cells) && ReferenceEquals(indexedLinks, links) &&
+                indexedCellCount == cells.Count && indexedLinkCount == links.Count)
+                return;
+
+            cellsByID = new Dictionary<int, LayoutCell>();
+            buckets = new Dictionary<(int, int), List<LayoutCell>>();
+            foreach (LayoutCell cell in cells)
+            {
+                cellsByID[cell.id] = cell;
+                (int, int) key = BucketOf(GetCenter(cell));
+                if (!buckets.TryGetValue(key, out List<LayoutCell> bucket))
+                    buckets[key] = bucket = new List<LayoutCell>();
+                bucket.Add(cell);
+            }
+
+            linksByEdge = new Dictionary<(int, int), LayoutLink>();
+            linksByCell = new Dictionary<int, List<LayoutLink>>();
+            foreach (LayoutLink link in links)
+            {
+                linksByEdge[(link.cellA, link.edgeA)] = link;
+                linksByEdge[(link.cellB, link.edgeB)] = link;
+                AddToCell(link.cellA, link);
+                AddToCell(link.cellB, link);
+            }
+
+            indexedCells = cells;
+            indexedLinks = links;
+            indexedCellCount = cells.Count;
+            indexedLinkCount = links.Count;
+        }
+
+        private void AddToCell(int cellID, LayoutLink link)
+        {
+            if (!linksByCell.TryGetValue(cellID, out List<LayoutLink> list))
+                linksByCell[cellID] = list = new List<LayoutLink>();
+            list.Add(link);
+        }
+
+        private static (int, int) BucketOf(Vector3 point)
+        {
+            return ((int)Math.Floor(point.x / BucketSize), (int)Math.Floor(point.z / BucketSize));
+        }
+
+        // Cells whose centers lie in the buckets around a point: every cell within BucketSize of it, and more.
+        private IEnumerable<LayoutCell> CellsNear(Vector3 point)
+        {
+            EnsureIndex();
+            (int x, int z) = BucketOf(point);
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    if (buckets.TryGetValue((x + dx, z + dz), out List<LayoutCell> bucket))
+                    {
+                        foreach (LayoutCell cell in bucket)
+                            yield return cell;
+                    }
+                }
+            }
         }
 
         public Vector3 GetCenter(LayoutCell cell)
@@ -254,7 +347,8 @@ namespace CRG.Building
 
         public LayoutLink GetLink(int cellID, int edge)
         {
-            return links.FirstOrDefault(link => link.Involves(cellID, edge));
+            EnsureIndex();
+            return linksByEdge.TryGetValue((cellID, edge), out LayoutLink link) ? link : null;
         }
 
         public bool IsOuterEdge(int cellID, int edge)
@@ -264,7 +358,8 @@ namespace CRG.Building
 
         public IEnumerable<LayoutLink> GetLinks(int cellID)
         {
-            return links.Where(link => link.cellA == cellID || link.cellB == cellID);
+            EnsureIndex();
+            return linksByCell.TryGetValue(cellID, out List<LayoutLink> list) ? list : Enumerable.Empty<LayoutLink>();
         }
 
         public LayoutCell AddFirstCell(CellShape shape)
@@ -301,46 +396,8 @@ namespace CRG.Building
                 return plan;
             }
 
-            float radius = GetCircumradius(shape);
-            Vector3 center = plan.Placement.TransformPoint(Vector3.zero);
-
-            foreach (LayoutCell other in cells)
-            {
-                if (Vector3.Distance(center, GetCenter(other)) > radius + GetCircumradius(other.shape) + Tolerance)
-                    continue;
-
-                if (PlanarGeometry.ConvexPolygonsOverlap(plan.Corners, GetCorners(other), Tolerance))
-                {
-                    plan.FailureReason = "It would overlap another cell";
-                    return plan;
-                }
-
-                int newEdgeCount = plan.Corners.Length;
-                int otherEdgeCount = CellShapes.GetEdgeCount(other.shape);
-                for (int newEdge = 0; newEdge < newEdgeCount; newEdge++)
-                {
-                    (Vector3 start, Vector3 end) = GetEdge(shape, plan.Placement, newEdge);
-
-                    for (int otherEdge = 0; otherEdge < otherEdgeCount; otherEdge++)
-                    {
-                        (Vector3 otherStart, Vector3 otherEnd) = GetEdge(other, otherEdge);
-                        switch (PlanarGeometry.GetContact(start, end, otherStart, otherEnd, Tolerance))
-                        {
-                            case PlanarGeometry.SegmentContact.ExactOpposite:
-                                if (!IsOuterEdge(other.id, otherEdge))
-                                {
-                                    plan.FailureReason = "It would touch an edge that is already shared";
-                                    return plan;
-                                }
-                                plan.Contacts.Add((other.id, otherEdge, newEdge));
-                                break;
-                            case PlanarGeometry.SegmentContact.PartialOverlap:
-                                plan.FailureReason = "Its edges would only partly line up with another cell";
-                                return plan;
-                        }
-                    }
-                }
-            }
+            if (!CheckFit(shape, plan.Placement, plan.Contacts, out plan.FailureReason))
+                return plan;
 
             if (!plan.Contacts.Any(contact => contact.cellID == cellID && contact.edge == edge))
             {
@@ -363,7 +420,7 @@ namespace CRG.Building
             foreach ((int cellID, int edge, int newEdge) in plan.Contacts)
             {
                 bool isTarget = cellID == plan.TargetCell && edge == plan.TargetEdge;
-                links.Add(new LayoutLink
+                AddLink(new LayoutLink
                 {
                     cellA = cellID, edgeA = edge,
                     cellB = cell.id, edgeB = newEdge,
@@ -377,6 +434,77 @@ namespace CRG.Building
         public LayoutCell Attach(int cellID, int edge, CellShape shape)
         {
             return Attach(PlanAttach(cellID, edge, shape));
+        }
+
+        // Adds a cell at a given placement (in units of the cell size), for building a layout from existing data
+        // such as a generated level. Unlike Attach it needn't touch another cell, but it follows the same rules: it
+        // must not overlap a cell, and it may touch cells only along exactly matching edges, each of which is linked
+        // with touchingEdges. Returns null (with the reason) when it doesn't fit.
+        public LayoutCell Place(CellShape shape, RoomPlacement placement, EdgeState touchingEdges, out string failureReason)
+        {
+            List<(int cellID, int edge, int newEdge)> contacts = new List<(int, int, int)>();
+            if (!CheckFit(shape, placement, contacts, out failureReason))
+                return null;
+
+            LayoutCell cell = AddCell(shape, placement);
+            foreach ((int cellID, int edge, int newEdge) in contacts)
+                AddLink(new LayoutLink { cellA = cellID, edgeA = edge, cellB = cell.id, edgeB = newEdge, state = touchingEdges });
+
+            return cell;
+        }
+
+        // A cell of this shape and placement must not overlap any cell, and may touch cells only along exactly
+        // matching free edges; those are added to contacts as (cell, its edge, the new cell's edge).
+        private bool CheckFit(CellShape shape, RoomPlacement placement, List<(int cellID, int edge, int newEdge)> contacts, out string failureReason)
+        {
+            failureReason = null;
+            Vector3[] corners = GetCorners(shape, placement);
+            float radius = GetCircumradius(shape);
+            Vector3 center = placement.TransformPoint(Vector3.zero);
+
+            foreach (LayoutCell other in CellsNear(center))
+            {
+                if (Vector3.Distance(center, GetCenter(other)) > radius + GetCircumradius(other.shape) + Tolerance)
+                    continue;
+
+                if (PlanarGeometry.ConvexPolygonsOverlap(corners, GetCorners(other), Tolerance))
+                {
+                    failureReason = "It would overlap another cell";
+                    return false;
+                }
+
+                int otherEdgeCount = CellShapes.GetEdgeCount(other.shape);
+                for (int newEdge = 0; newEdge < corners.Length; newEdge++)
+                {
+                    (Vector3 start, Vector3 end) = GetEdge(shape, placement, newEdge);
+
+                    for (int otherEdge = 0; otherEdge < otherEdgeCount; otherEdge++)
+                    {
+                        (Vector3 otherStart, Vector3 otherEnd) = GetEdge(other, otherEdge);
+                        switch (PlanarGeometry.GetContact(start, end, otherStart, otherEnd, Tolerance))
+                        {
+                            case PlanarGeometry.SegmentContact.ExactOpposite:
+                                if (!IsOuterEdge(other.id, otherEdge))
+                                {
+                                    failureReason = "It would touch an edge that is already shared";
+                                    return false;
+                                }
+                                contacts.Add((other.id, otherEdge, newEdge));
+                                break;
+                            case PlanarGeometry.SegmentContact.PartialOverlap:
+                                failureReason = "Its edges would only partly line up with another cell";
+                                return false;
+                        }
+                    }
+                }
+            }
+
+            // In cell order (cells are stored by ID), as a scan over all cells finds them, so links keep a stable
+            // order whatever order the buckets return cells in.
+            contacts.Sort((a, b) => a.cellID != b.cellID ? a.cellID.CompareTo(b.cellID)
+                : a.newEdge != b.newEdge ? a.newEdge.CompareTo(b.newEdge)
+                : a.edge.CompareTo(b.edge));
+            return true;
         }
 
         // A cell can be removed unless the rest of the layout would fall apart into pieces that no longer touch.
@@ -422,6 +550,7 @@ namespace CRG.Building
 
             cells.RemoveAll(cell => cell.id == cellID);
             links.RemoveAll(link => link.cellA == cellID || link.cellB == cellID);
+            InvalidateIndex();
             if (startCell == cellID)
                 startCell = -1;
             if (endCell == cellID)
@@ -433,6 +562,7 @@ namespace CRG.Building
         {
             cells.Clear();
             links.Clear();
+            InvalidateIndex();
             nextCellID = 0;
             startCell = -1;
             endCell = -1;
@@ -531,7 +661,7 @@ namespace CRG.Building
         // The cell containing a layout point, or -1.
         public int FindCellAt(Vector3 point)
         {
-            foreach (LayoutCell cell in cells)
+            foreach (LayoutCell cell in CellsNear(point))
             {
                 if (Contains(GetCorners(cell), point))
                     return cell.id;
@@ -546,7 +676,9 @@ namespace CRG.Building
             edge = -1;
             float best = maxDistance;
 
-            foreach (LayoutCell cell in cells)
+            // Nearby buckets hold every cell with an edge within maxDistance, as long as maxDistance stays below
+            // BucketSize minus the largest circumradius.
+            foreach (LayoutCell cell in maxDistance < 1.5f ? CellsNear(point) : cells)
             {
                 int count = CellShapes.GetEdgeCount(cell.shape);
                 for (int i = 0; i < count; i++)
@@ -568,11 +700,32 @@ namespace CRG.Building
             return cellID >= 0;
         }
 
+        // Adding keeps the lookup tables up to date instead of rebuilding them, so building large layouts stays linear.
         private LayoutCell AddCell(CellShape shape, RoomPlacement placement)
         {
+            EnsureIndex();
             LayoutCell cell = new LayoutCell { id = nextCellID++, shape = shape, placement = placement };
             cells.Add(cell);
+
+            cellsByID[cell.id] = cell;
+            (int, int) key = BucketOf(GetCenter(cell));
+            if (!buckets.TryGetValue(key, out List<LayoutCell> bucket))
+                buckets[key] = bucket = new List<LayoutCell>();
+            bucket.Add(cell);
+            indexedCellCount = cells.Count;
             return cell;
+        }
+
+        private void AddLink(LayoutLink link)
+        {
+            EnsureIndex();
+            links.Add(link);
+
+            linksByEdge[(link.cellA, link.edgeA)] = link;
+            linksByEdge[(link.cellB, link.edgeB)] = link;
+            AddToCell(link.cellA, link);
+            AddToCell(link.cellB, link);
+            indexedLinkCount = links.Count;
         }
 
         private static float GetCircumradius(CellShape shape)

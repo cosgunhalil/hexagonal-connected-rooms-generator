@@ -16,6 +16,9 @@ namespace CRG.Core
         public int CellCount => cells.Count;
         public int RoomCount => rooms.Count;
 
+        // The seed the grid was generated with, or -1 when it wasn't generated.
+        public int Seed { get; set; } = -1;
+
         public CellGrid(IGridTopology topology, float cellSize)
         {
             Topology = topology;

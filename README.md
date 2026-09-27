@@ -117,7 +117,7 @@ The layout is saved with the scene in units of the cell size, so changing Cell S
 | | NavMesh Agent Type | Humanoid | Agent type from the Navigation settings. |
 | | NavMesh Geometry | Render Meshes | Bake from render meshes or physics colliders (colliders require Add Mesh Collider). |
 | Spawns | Create Spawn Points | On | Adds an empty spawn point Transform in every room. |
-| Randomization | Random Seed | −1 | Seed for reproducible levels; −1 picks a random seed. |
+| Randomization | Random Seed | −1 | Seed for reproducible levels; −1 picks a random seed, which is saved with the level (see its `CRGLevelData` Inspector) so it can be made again. |
 | Safety limits | Max Iterations / Max Retries Per Room | 1000 / 3 | Limits on the generation loop and on room shape retries. |
 
 `MaxConnectionsPerRoom = 1` only allows 2 rooms, so that combination is rejected as invalid.
@@ -190,6 +190,7 @@ Every generated level has a `CRGLevelData` component with the layout, stored wit
 |---|---|
 | `GridType`, `CellSize`, `IsMixed`, `IsHandBuilt` | The level's grid type and cell edge length; `IsMixed` and `IsHandBuilt` tell mixed and hand-built levels apart. |
 | `Rooms` | `RoomData` per room: `RoomID`, `Cells`, `ConnectedRoomIDs`, `DistanceFromStart`, `Role` (Start / End / Normal), `SpawnPoint`, `IsDeadEnd`, `HasCeiling`, and for mixed levels the room's own `GridType` and `Placement` (where its grid sits in the level). Hand-built rooms also have their `Name` and `Tag`, and `PlacedCells` with each cell's own grid type and placement (their `Cells` hold the builder's cell IDs as `x`). |
+| `Seed`, `GenerationSettings`, `FloorMaterial`, `WallMaterial`, `CeilingMaterial`, `DoorPrefab` | What the level was made with: the seed actually used (−1 for hand-built levels), a copy of the settings, and the materials and door prefab. Levels made before 0.8.0 don't have them (`HasGenerationSettings` is false). |
 | `Doors` | `DoorData` per door: `RoomA`, `RoomB`, `CellA`, `EdgeA`, `DoorObject` (the placed prefab, if any). |
 | `StartRoom`, `EndRoom` | The first room placed, and the room farthest from it by door count (or the rooms chosen in the level builder). |
 | `GetRoom(id)`, `GetSpawnPoint(id)`, `FindRoom(name)`, `GetRoomsWithTag(tag)` | Lookups by room ID, and by the names and tags set in the level builder. |

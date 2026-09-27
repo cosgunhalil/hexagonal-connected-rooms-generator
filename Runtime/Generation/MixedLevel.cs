@@ -13,6 +13,9 @@ namespace CRG.Generation
         public List<PlacedRoom> Rooms { get; } = new List<PlacedRoom>();
         public List<RoomLink> Links { get; } = new List<RoomLink>();
 
+        // The seed the level was generated with, or -1 when it wasn't generated.
+        public int Seed { get; set; } = -1;
+
         public MixedLevel(float cellSize)
         {
             CellSize = cellSize;

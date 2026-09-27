@@ -4,6 +4,7 @@ using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using CRG.Building;
+using CRG.Core;
 using CRG.Generation;
 using CRG.Runtime;
 
@@ -199,6 +200,86 @@ namespace CRG.Tests
 
             layout.Clear();
             Assert.AreEqual(-1, layout.EndCell);
+        }
+
+        [Test]
+        public void Place_PutsACellAnywhere_AndLinksTouchingEdges()
+        {
+            LevelLayout layout = new LevelLayout();
+            LayoutCell a = layout.Place(CellShape.Square, new RoomPlacement(0, 0, 0), EdgeState.Wall, out string reason);
+            Assert.IsNotNull(a, reason);
+
+            // Not touching anything is allowed when placing.
+            LayoutCell far = layout.Place(CellShape.Hexagon, new RoomPlacement(10, 10, 0), EdgeState.Wall, out reason);
+            Assert.IsNotNull(far, reason);
+            Assert.AreEqual(0, layout.Links.Count);
+
+            // A square right of the first one shares its east edge.
+            LayoutCell b = layout.Place(CellShape.Square, new RoomPlacement(1, 0, 0), EdgeState.Open, out reason);
+            Assert.IsNotNull(b, reason);
+            Assert.AreEqual(1, layout.Links.Count);
+            Assert.AreEqual(EdgeState.Open, layout.Links[0].state);
+            Assert.AreEqual((a.id, b.id), (layout.Links[0].cellA, layout.Links[0].cellB));
+
+            Assert.IsNull(layout.Place(CellShape.Square, new RoomPlacement(1.5, 0, 0), EdgeState.Wall, out reason));
+            StringAssert.Contains("overlap", reason);
+            Assert.IsNull(layout.Place(CellShape.Square, new RoomPlacement(0.5, 1, 0), EdgeState.Wall, out reason));
+            StringAssert.Contains("partly", reason);
+            Assert.AreEqual(3, layout.Cells.Count);
+        }
+
+        // Undo, redo and scene loads deserialize the layout, which can replace its cell and link objects; lookups
+        // must then return the new objects.
+        [Test]
+        public void Lookups_FollowDeserialization()
+        {
+            LevelLayout layout = new LevelLayout();
+            LayoutCell a = layout.AddFirstCell(CellShape.Square);
+            layout.Attach(a.id, 0, CellShape.Square);
+            string before = JsonUtility.ToJson(layout);
+
+            Assert.AreEqual(EdgeState.Door, layout.GetLink(a.id, 0).state);
+            layout.GetLink(a.id, 0).state = EdgeState.Open;
+
+            JsonUtility.FromJsonOverwrite(before, layout);
+            Assert.AreSame(layout.Links[0], layout.GetLink(a.id, 0), "the lookup returns the deserialized link");
+            Assert.AreEqual(EdgeState.Door, layout.GetLink(a.id, 0).state);
+            Assert.AreSame(layout.Cells[0], layout.GetCell(a.id));
+            Assert.AreEqual(2, layout.GetRooms().Rooms.Count);
+        }
+
+        [Test]
+        public void LargeLayouts_StayFast()
+        {
+            System.Random random = new System.Random(1);
+            LevelLayout layout = new LevelLayout();
+            layout.AddFirstCell(CellShape.Hexagon);
+
+            System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+            for (int attempt = 0; attempt < 20000 && layout.Cells.Count < 1500; attempt++)
+            {
+                LayoutCell cell = layout.Cells[random.Next(layout.Cells.Count)];
+                layout.Attach(cell.id, random.Next(CellShapes.GetEdgeCount(cell.shape)), CellShapes.All[random.Next(CellShapes.All.Length)]);
+            }
+            Assert.AreEqual(1500, layout.Cells.Count);
+            Assert.Less(watch.ElapsedMilliseconds, 5000, "building 1500 cells");
+
+            foreach (LayoutLink link in layout.Links)
+                link.state = (EdgeState)random.Next(3);
+
+            watch.Restart();
+            for (int i = 0; i < 20; i++)
+                layout.GetRooms();
+            Assert.Less(watch.ElapsedMilliseconds, 2000, "finding rooms 20 times");
+
+            watch.Restart();
+            for (int i = 0; i < 500; i++)
+            {
+                Vector3 point = layout.GetCenter(layout.Cells[random.Next(layout.Cells.Count)]);
+                layout.FindCellAt(point);
+                layout.FindNearestEdge(point + new Vector3(0.3f, 0f, 0f), 0.2f, null, out _, out _);
+            }
+            Assert.Less(watch.ElapsedMilliseconds, 2000, "picking 500 times");
         }
 
         [Test]

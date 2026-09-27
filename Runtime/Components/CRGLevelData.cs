@@ -89,6 +89,15 @@ namespace CRG.Runtime
         [SerializeField, HideInInspector] private List<RoomData> rooms = new List<RoomData>();
         [SerializeField, HideInInspector] private List<DoorData> doors = new List<DoorData>();
 
+        // What the level was made with; levels made before these were saved don't have them.
+        [SerializeField, HideInInspector] private bool hasGenerationSettings;
+        [SerializeField, HideInInspector] private GenerationParameters generationSettings;
+        [SerializeField, HideInInspector] private int seed = -1;
+        [SerializeField, HideInInspector] private Material floorMaterial;
+        [SerializeField, HideInInspector] private Material wallMaterial;
+        [SerializeField, HideInInspector] private Material ceilingMaterial;
+        [SerializeField, HideInInspector] private GameObject doorPrefab;
+
         public float CellSize => cellSize;
         public GridType GridType => gridType;
         // The level's grid for single-grid levels. Mixed levels have one per room: use GetTopology(room).
@@ -99,6 +108,20 @@ namespace CRG.Runtime
         public float DoorHeight => doorHeight;
         public IReadOnlyList<RoomData> Rooms => rooms;
         public IReadOnlyList<DoorData> Doors => doors;
+
+        public bool HasGenerationSettings => hasGenerationSettings && generationSettings != null;
+
+        // A copy of the settings the level was made with (for generated levels RandomSeed is the seed actually
+        // used), or null for levels made before settings were saved with them.
+        public GenerationParameters GenerationSettings => HasGenerationSettings ? generationSettings : null;
+
+        // The seed a generated level was made with; -1 for hand-built levels and levels made before seeds were saved.
+        public int Seed => seed;
+
+        public Material FloorMaterial => floorMaterial;
+        public Material WallMaterial => wallMaterial;
+        public Material CeilingMaterial => ceilingMaterial;
+        public GameObject DoorPrefab => doorPrefab;
 
         public RoomData StartRoom => rooms.Find(room => room.Role == RoomRole.Start);
         public RoomData EndRoom => rooms.Find(room => room.Role == RoomRole.End);
@@ -258,6 +281,17 @@ namespace CRG.Runtime
                 room.ConnectedRoomIDs.Sort();
 
             AssignRoles(layoutRooms.StartRoom, layoutRooms.EndRoom);
+        }
+
+        public void SetGenerationSettings(GenerationParameters settings, int usedSeed, Material floor, Material wall, Material ceiling, GameObject door)
+        {
+            hasGenerationSettings = settings != null;
+            generationSettings = settings;
+            seed = usedSeed;
+            floorMaterial = floor;
+            wallMaterial = wall;
+            ceilingMaterial = ceiling;
+            doorPrefab = door;
         }
 
         public Transform GetSpawnPoint(int roomID)

@@ -237,6 +237,13 @@ namespace CRG.Geometry
 
             if (options != null)
             {
+                // A copy of the settings, with the seed actually used, so the level can be made or edited again.
+                int seed = grid != null ? grid.Seed : mixedLevel != null ? mixedLevel.Seed : -1;
+                GenerationParameters used = options.Clone();
+                if (seed >= 0)
+                    used.RandomSeed = seed;
+                data.SetGenerationSettings(used, seed, floorMaterial, wallMaterial, ceilingMaterial, doorPrefab);
+
                 if (options.AddMeshCollider)
                     AddMeshColliders(level);
 

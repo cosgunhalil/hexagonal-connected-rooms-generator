@@ -28,15 +28,14 @@ namespace CRG.Generation
                 throw new ArgumentException("Mixed levels use a grid per room; generate them with MixedLevelGenerator");
 
             this.parameters = parameters;
-            this.random = parameters.RandomSeed >= 0 
-                ? new System.Random(parameters.RandomSeed)
-                : new System.Random();
+            int seed = parameters.ResolveSeed();
+            this.random = new System.Random(seed);
 
             this.shapeGenerator = new RoomShapeGenerator();
             this.connectionAnalyzer = new ConnectionAnalyzer(parameters.MaxConnectionsPerRoom);
 
             this.topology = GridTopology.Get(parameters.GridType);
-            CellGrid grid = new CellGrid(topology, parameters.CellSize);
+            CellGrid grid = new CellGrid(topology, parameters.CellSize) { Seed = seed };
 
             Debug.Log($"Starting generation with parameters: {parameters}");
 

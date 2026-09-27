@@ -352,6 +352,18 @@ namespace CRG.Generation
             return inset;
         }
 
+        public GenerationParameters Clone()
+        {
+            return (GenerationParameters)MemberwiseClone();
+        }
+
+        // The seed generation uses: RandomSeed, or a freshly picked one when it is negative (random), so the
+        // level can be made again later.
+        public int ResolveSeed()
+        {
+            return RandomSeed >= 0 ? RandomSeed : new System.Random().Next(0, 1000000);
+        }
+
         public static GenerationParameters CreateDefault()
         {
             return new GenerationParameters

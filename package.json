@@ -1,6 +1,6 @@
 {
   "name": "com.cosgunhalil.connected-rooms-generator",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "displayName": "Connected Rooms Generator",
   "description": "A procedural generation tool for Unity that creates interconnected rooms on hexagonal, square, triangle or octagon + square grids, or all of them mixed in one level, or lets you build levels by hand cell by cell. Each room is a cluster of adjacent cells; the level is built as a single ProBuilder mesh with doors, optional colliders, NavMesh, spawn points and door prefabs.",
   "unity": "2021.3",

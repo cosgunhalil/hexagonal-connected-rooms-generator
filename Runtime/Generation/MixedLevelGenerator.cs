@@ -61,9 +61,10 @@ namespace CRG.Generation
                 throw new ArgumentException("Invalid parameters: at least one grid type weight must be above 0");
 
             this.parameters = parameters;
-            random = parameters.RandomSeed >= 0 ? new System.Random(parameters.RandomSeed) : new System.Random();
+            int levelSeed = parameters.ResolveSeed();
+            random = new System.Random(levelSeed);
             shapeGenerator = new RoomShapeGenerator();
-            level = new MixedLevel(parameters.CellSize);
+            level = new MixedLevel(parameters.CellSize) { Seed = levelSeed };
             tolerance = parameters.CellSize * ToleranceRatio;
             cells = new SpatialHash<PlacedCell>(parameters.CellSize * 3f);
             openEdges = new SpatialHash<OpenEdge>(parameters.CellSize * 3f);
